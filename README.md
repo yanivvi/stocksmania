@@ -152,8 +152,10 @@ stocksmania/
 ├── stock_fetcher.py     # Data fetching & processing
 ├── telegram_notify.py   # Telegram notifications
 ├── config.py            # Configuration
+├── providers.py         # Data source providers
 ├── requirements.txt     # Dependencies
 ├── daily_update.sh      # Local cron script
+├── add_stock.sh         # Helper to add new stocks locally
 ├── data/                # Stock price CSVs
 │   ├── NVDA_prices.csv
 │   ├── AAPL_prices.csv
@@ -161,7 +163,8 @@ stocksmania/
 ├── charts/              # Generated charts
 └── .github/
     └── workflows/
-        └── daily_update.yml  # GitHub Actions
+        ├── daily_update.yml  # Daily stock updates
+        └── add_stock.yml     # Add new stocks via browser
 ```
 
 ## ⚙️ Configuration
@@ -197,17 +200,63 @@ Currently tracking 23 stocks across multiple sectors:
 | **Consumer** | KO, COST, NFLX, SPOT |
 | **Industrial** | BA |
 
+## ➕ Adding New Stocks
+
+### Option 1: From Browser (Recommended) 📱
+
+No coding needed! Just use GitHub Actions:
+
+1. Go to [**Actions** → **Add New Stock**](https://github.com/yanivvi/stocksmania/actions/workflows/add_stock.yml)
+2. Click **"Run workflow"**
+3. Enter tickers: `UBER DIS PYPL`
+4. Click **"Run workflow"** ✅
+
+The action will:
+- ✅ Fetch historical data
+- ✅ Update daily workflow
+- ✅ Commit changes to repo
+- ✅ Send you a Telegram confirmation!
+
+### Option 2: Local Script
+
+```bash
+./add_stock.sh UBER
+# Or multiple:
+./add_stock.sh UBER DIS PYPL
+```
+
+### Option 3: Manual Steps
+
+```bash
+# 1. Fetch historical data
+python main.py initial -s UBER
+
+# 2. Add to daily_update.sh (add ticker to the -s list)
+# 3. Add to .github/workflows/daily_update.yml (add ticker to the -s list)
+# 4. Commit and push
+```
+
 ## 🤖 GitHub Actions
 
-The workflow runs automatically:
+Two workflows available:
+
+### Daily Update (Automatic)
 - **Schedule**: Every weekday at 6pm Israel time (4pm UTC)
 - **Manual**: Can be triggered from Actions tab
+- **What it does**:
+  1. Fetches latest stock prices
+  2. Updates CSV data files
+  3. Sends Telegram report
+  4. Commits updated data to repo
 
-What it does:
-1. Fetches latest stock prices
-2. Updates CSV data files
-3. Sends Telegram report
-4. Commits updated data to repo
+### Add New Stock (Manual)
+- **Trigger**: Manual only (workflow_dispatch)
+- **Input**: Stock tickers (space-separated)
+- **What it does**:
+  1. Fetches historical data for new stocks
+  2. Updates the daily workflow
+  3. Commits changes
+  4. Sends Telegram confirmation
 
 ## 📈 Data Sources
 
