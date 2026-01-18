@@ -22,34 +22,21 @@ echo ""
 echo "1️⃣ Fetching historical data..."
 python main.py initial -s $TICKERS -d 5
 
-# Step 2: Update daily_update.sh
+# Step 2: Update stocks.txt
 echo ""
-echo "2️⃣ Updating daily_update.sh..."
+echo "2️⃣ Updating stocks.txt..."
 for ticker in $TICKERS; do
-    if ! grep -q "$ticker" daily_update.sh; then
-        sed -i '' "s/STOCKS=\"/STOCKS=\"$ticker /" daily_update.sh
-        echo "   ✅ Added $ticker to daily_update.sh"
+    if ! grep -q "^$ticker$" stocks.txt; then
+        echo "$ticker" >> stocks.txt
+        echo "   ✅ Added $ticker to stocks.txt"
     else
-        echo "   ⏭️ $ticker already in daily_update.sh"
+        echo "   ⏭️ $ticker already in stocks.txt"
     fi
 done
 
-# Step 3: Update GitHub workflow
+# Step 3: Git commit and push
 echo ""
-echo "3️⃣ Updating GitHub Actions workflow..."
-WORKFLOW=".github/workflows/daily_update.yml"
-for ticker in $TICKERS; do
-    if ! grep -q "$ticker" $WORKFLOW; then
-        sed -i '' "s/python main.py daily -s /python main.py daily -s $ticker /" $WORKFLOW
-        echo "   ✅ Added $ticker to workflow"
-    else
-        echo "   ⏭️ $ticker already in workflow"
-    fi
-done
-
-# Step 4: Git commit and push
-echo ""
-echo "4️⃣ Committing and pushing to GitHub..."
+echo "3️⃣ Committing and pushing to GitHub..."
 git add -A
 git commit -m "➕ Add stocks: $TICKERS"
 git push

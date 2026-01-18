@@ -1,0 +1,26 @@
+# Stock tickers to track (one per line)
+# Add new stocks by running the "Add New Stock" GitHub Action
+NVDA
+AMD
+INTC
+AAPL
+MSFT
+GOOGL
+AMZN
+META
+TSLA
+JPM
+V
+COIN
+KO
+COST
+NFLX
+SPOT
+BA
+LLY
+NVO
+PLTR
+CRM
+CRWD
+PANW
+MARA

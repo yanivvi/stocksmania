@@ -36,17 +36,16 @@ jobs:
           echo "📈 Fetching data for: ${{ github.event.inputs.tickers }}"
           python main.py initial -s ${{ github.event.inputs.tickers }}
       
-      - name: Update daily workflow
+      - name: Update stocks.txt
         run: |
           TICKERS="${{ github.event.inputs.tickers }}"
           
-          # Update daily_update.yml
           for ticker in $TICKERS; do
-            if ! grep -q "$ticker" .github/workflows/daily_update.yml; then
-              sed -i "s/python main.py daily -s /python main.py daily -s $ticker /" .github/workflows/daily_update.yml
-              echo "✅ Added $ticker to daily workflow"
+            if ! grep -q "^$ticker$" stocks.txt; then
+              echo "$ticker" >> stocks.txt
+              echo "✅ Added $ticker to stocks.txt"
             else
-              echo "⏭️ $ticker already in workflow"
+              echo "⏭️ $ticker already in stocks.txt"
             fi
           done
       

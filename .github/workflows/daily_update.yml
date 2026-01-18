@@ -34,7 +34,10 @@ jobs:
       
       - name: Fetch latest stock data
         run: |
-          python main.py daily -s NVDA AAPL MSFT GOOGL AMZN META TSLA AMD INTC BA KO PLTR CRM CRWD PANW LLY NVO JPM V NFLX COST COIN SPOT
+          # Read tickers from stocks.txt (skip comments and empty lines)
+          TICKERS=$(grep -v '^#' stocks.txt | grep -v '^$' | tr '\n' ' ')
+          echo "Updating: $TICKERS"
+          python main.py daily -s $TICKERS
       
       - name: Send Telegram notification
         env:
