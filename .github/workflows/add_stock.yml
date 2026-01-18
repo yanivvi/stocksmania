@@ -1,0 +1,69 @@
+name: Add New Stock
+
+on:
+  workflow_dispatch:
+    inputs:
+      tickers:
+        description: 'Stock tickers to add (space-separated, e.g., UBER DIS PYPL)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  add-stock:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      
+      - name: Fetch historical data for new stocks
+        run: |
+          echo "📈 Fetching data for: ${{ github.event.inputs.tickers }}"
+          python main.py initial -s ${{ github.event.inputs.tickers }}
+      
+      - name: Update daily workflow
+        run: |
+          TICKERS="${{ github.event.inputs.tickers }}"
+          
+          # Update daily_update.yml
+          for ticker in $TICKERS; do
+            if ! grep -q "$ticker" .github/workflows/daily_update.yml; then
+              sed -i "s/python main.py daily -s /python main.py daily -s $ticker /" .github/workflows/daily_update.yml
+              echo "✅ Added $ticker to daily workflow"
+            else
+              echo "⏭️ $ticker already in workflow"
+            fi
+          done
+      
+      - name: Commit and push changes
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add -A
+          git diff --quiet && git diff --staged --quiet || git commit -m "➕ Add stocks: ${{ github.event.inputs.tickers }}"
+          git push
+      
+      - name: Send confirmation to Telegram
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          MESSAGE="✅ Added new stocks: ${{ github.event.inputs.tickers }}%0A%0AThey will appear in tomorrow's report!"
+          curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -d "chat_id=${TELEGRAM_CHAT_ID}" \
+            -d "text=${MESSAGE}"
