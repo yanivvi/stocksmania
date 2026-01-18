@@ -1,0 +1,31 @@
+# Environment secrets (NEVER commit!)
+.env
+
+# Virtual environment
+venv/
+.venv/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.Python
+
+# Logs
+logs/
+*.log
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Data files (regenerated daily)
+# data/
+
+# Keep charts
+# charts/
