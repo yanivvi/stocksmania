@@ -153,6 +153,7 @@ stocksmania/
 ├── telegram_notify.py   # Telegram notifications
 ├── config.py            # Configuration
 ├── providers.py         # Data source providers
+├── stocks.txt           # 📋 List of tickers to track
 ├── requirements.txt     # Dependencies
 ├── daily_update.sh      # Local cron script
 ├── add_stock.sh         # Helper to add new stocks locally
@@ -213,7 +214,7 @@ No coding needed! Just use GitHub Actions:
 
 The action will:
 - ✅ Fetch historical data
-- ✅ Update daily workflow
+- ✅ Add ticker to `stocks.txt`
 - ✅ Commit changes to repo
 - ✅ Send you a Telegram confirmation!
 
@@ -231,9 +232,11 @@ The action will:
 # 1. Fetch historical data
 python main.py initial -s UBER
 
-# 2. Add to daily_update.sh (add ticker to the -s list)
-# 3. Add to .github/workflows/daily_update.yml (add ticker to the -s list)
-# 4. Commit and push
+# 2. Add ticker to stocks.txt
+echo "UBER" >> stocks.txt
+
+# 3. Commit and push
+git add -A && git commit -m "Add UBER" && git push
 ```
 
 ## 🤖 GitHub Actions
