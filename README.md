@@ -1,15 +1,16 @@
 # 📈 StocksMania
 
-A Python-based stock tracker that monitors daily prices, calculates 150-day moving averages, and sends actionable **BUY/SELL recommendations** via Telegram.
+A Python-based stock tracker that monitors daily prices, calculates 150-day moving averages, and sends actionable **BUY/SELL recommendations** with charts via Telegram.
 
-![Example Chart](charts/semiconductors.png)
+![Example Chart](charts/NVDA.png)
 
 ## 🎯 What It Does
 
 - **Fetches daily stock prices** from multiple free data sources (Stooq, Yahoo Finance, Alpha Vantage)
 - **Calculates 150-day moving averages** - a key technical indicator used by traders
-- **Generates BUY/SELL signals** based on price position relative to the moving average
-- **Sends daily Telegram reports** with actionable recommendations
+- **Generates individual charts** for each stock with BUY/SELL signals
+- **Ranks recommendations** with a scoring system (0-100)
+- **Sends daily Telegram reports** with top 3 picks + charts + reasoning
 - **Runs automatically** via GitHub Actions (no server needed!)
 
 ## 📊 The Strategy
@@ -23,40 +24,77 @@ The 150-day moving average is a popular technical indicator. The logic:
 | > +40% | 🔴 **SELL** | Overbought, take profits |
 | < -10% | 🔴 **SELL** | Downtrend, avoid |
 
+## 🏆 Scoring System
+
+Each stock gets a **score out of 100** to help you prioritize:
+
+### BUY Score (higher = better entry)
+- **Position**: How close to ideal entry (5% above MA is perfect)
+- **Momentum**: Positive daily change adds bonus points
+
+### SELL Urgency (higher = more urgent)
+- **Overbought**: How far above 40% threshold
+- **Downtrend**: How far below -10% threshold
+- **Momentum**: Negative daily change increases urgency
+
 ## 📱 Daily Telegram Report
 
 Every day at market close, you receive:
 
+**Header**
 ```
-📈 StocksMania - Jan 18, 2026
+📈 StocksMania Daily Report
+📅 Jan 20, 2026
 ━━━━━━━━━━━━━━━━━━━━
 
-🟢 ACTION: BUY
-(Above MA, not overbought)
-  → PLTR $170.96 (+0.8%)
-  → KO $70.44 (+2.5%)
-  → COST $963.61 (+3.0%)
-  → JPM $312.47 (+3.1%)
-  → NVDA $186.23 (+4.4%)
-
-🔴 ACTION: SELL/AVOID
-(Below -10% or overbought >40%)
-  → SPOT $504.50 (-23.5%) ⚠️ downtrend
-  → COIN $241.15 (-22.9%) ⚠️ downtrend
-  → INTC $46.96 (+50.2%) ⚠️ overbought
-
-━━━━━━━━━━━━━━━━━━━━
-💼 YOUR HOLDINGS CHECK:
-
-NVDA: $186.23
-  vs 150-MA: +4.4%
-  Today: -0.4%
-  → ✅ KEEP / ADD MORE
-
-━━━━━━━━━━━━━━━━━━━━
-🚀 Top Gainer: NVO +9.1%
-💥 Top Loser: PLTR -3.5%
+🟢 BUY signals: 12
+🔴 SELL signals: 7
 ```
+
+**Top 3 BUY with Charts**
+```
+🟢 ═══ TOP 3 BUY SIGNALS ═══
+
+🥇 #1 BUY: KO
+📊 Score: 72/100
+
+💰 Price: $62.86
+📈 150-Day MA: $62.13
+📉 vs MA: +1.2%
+📆 Today: +0.8%
+
+💡 Healthy uptrend at +1.2% above MA. Good entry point.
+[Chart attached]
+
+🥈 #2 BUY: JPM ...
+🥉 #3 BUY: V ...
+
+🏅 Honorable Mentions (BUY):
+  • NVDA - Score: 58 | $136.89 (+5.7%)
+  • COST - Score: 45 | $921.62 (+8.3%)
+```
+
+**Top 3 SELL with Charts**
+```
+🔴 ═══ TOP 3 SELL/AVOID ═══
+
+⚠️ #1 SELL: KTOS
+🚨 Urgency: 98/100
+
+💰 Price: $130.72
+📈 150-Day MA: $73.30
+📉 vs MA: +78.3%
+📆 Today: +4.9%
+
+⚠️ Overbought at +78.3% above MA. Take profits.
+[Chart attached]
+
+⚠️ Also Avoid:
+  • PLTR - Urgency: 72 | $117.08 (+60.2%)
+  • COIN - Urgency: 65 | $278.11 (-19.0%)
+```
+
+**Your Holdings Check + Top Movers**
 
 ## 🚀 Quick Start
 
@@ -78,8 +116,10 @@ pip install -r requirements.txt
 ### 3. Create your `.env` file
 
 ```bash
-cp .env.example .env
-# Edit .env with your credentials
+# Create .env with your credentials
+TELEGRAM_BOT_TOKEN=your_bot_token
+TELEGRAM_CHAT_ID=your_chat_id
+MY_HOLDINGS=NVDA,AAPL,GOOGL
 ```
 
 ### 4. Fetch historical data
@@ -88,10 +128,10 @@ cp .env.example .env
 python main.py initial -s NVDA AAPL MSFT GOOGL
 ```
 
-### 5. View charts
+### 5. Run the report
 
 ```bash
-python main.py chart NVDA AAPL --save charts/my_stocks.png
+python telegram_notify.py
 ```
 
 ## 💻 CLI Commands
@@ -149,8 +189,8 @@ python telegram_notify.py
 ```
 stocksmania/
 ├── main.py              # CLI entry point
-├── stock_fetcher.py     # Data fetching & processing
-├── telegram_notify.py   # Telegram notifications
+├── stock_fetcher.py     # Data fetching & chart generation
+├── telegram_notify.py   # Telegram notifications with scoring
 ├── config.py            # Configuration
 ├── providers.py         # Data source providers
 ├── stocks.txt           # 📋 List of tickers to track
@@ -161,7 +201,10 @@ stocksmania/
 │   ├── NVDA_prices.csv
 │   ├── AAPL_prices.csv
 │   └── ...
-├── charts/              # Generated charts
+├── charts/              # Individual stock charts (auto-generated)
+│   ├── NVDA.png
+│   ├── AAPL.png
+│   └── ...
 └── .github/
     └── workflows/
         ├── daily_update.yml  # Daily stock updates
@@ -188,7 +231,7 @@ Add these in **Settings → Secrets → Actions**:
 
 ## 📊 Tracked Stocks
 
-Currently tracking 23 stocks across multiple sectors:
+Currently tracking 30 stocks across multiple sectors:
 
 | Sector | Stocks |
 |--------|--------|
@@ -200,6 +243,8 @@ Currently tracking 23 stocks across multiple sectors:
 | **Financials** | JPM, V, COIN |
 | **Consumer** | KO, COST, NFLX, SPOT |
 | **Industrial** | BA |
+| **Defense** | LMT, RTX, NOC, GD, KTOS |
+| **Crypto/Other** | MARA, TKO |
 
 ## ➕ Adding New Stocks
 
@@ -248,16 +293,16 @@ Two workflows available:
 - **Manual**: Can be triggered from Actions tab
 - **What it does**:
   1. Fetches latest stock prices
-  2. Updates CSV data files
-  3. Sends Telegram report
-  4. Commits updated data to repo
+  2. Generates individual charts for all stocks
+  3. Sends Telegram report with top 3 BUY/SELL + charts
+  4. Commits updated data and charts to repo
 
 ### Add New Stock (Manual)
 - **Trigger**: Manual only (workflow_dispatch)
 - **Input**: Stock tickers (space-separated)
 - **What it does**:
   1. Fetches historical data for new stocks
-  2. Updates the daily workflow
+  2. Adds to `stocks.txt`
   3. Commits changes
   4. Sends Telegram confirmation
 
