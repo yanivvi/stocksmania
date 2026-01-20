@@ -485,3 +485,141 @@ class StockFetcher:
         
         plt.show()
         print("📊 Chart displayed!")
+    
+    def generate_stock_chart(self, symbol: str, save_dir: str = "charts") -> str | None:
+        """
+        Generate an individual chart for a single stock with buy/sell zone indicators.
+        
+        Args:
+            symbol: Stock ticker symbol
+            save_dir: Directory to save the chart
+            
+        Returns:
+            Path to saved chart, or None if failed
+        """
+        import matplotlib.pyplot as plt
+        import matplotlib.dates as mdates
+        from matplotlib.patches import Rectangle
+        
+        df = self.load_existing_data(symbol)
+        if df.empty:
+            print(f"⚠️  No data found for {symbol}")
+            return None
+        
+        # Recalculate rolling average
+        df = self._add_rolling_average(df)
+        rolling_col = f'Rolling_Avg_{self.config.rolling_window}d'
+        
+        # Get latest values
+        latest_price = df['Close'].iloc[-1]
+        latest_ma = df[rolling_col].iloc[-1] if rolling_col in df.columns and pd.notna(df[rolling_col].iloc[-1]) else None
+        
+        # Calculate vs MA percentage
+        if latest_ma:
+            vs_ma_pct = ((latest_price - latest_ma) / latest_ma) * 100
+        else:
+            vs_ma_pct = None
+        
+        # Determine signal
+        if vs_ma_pct is None:
+            signal = "HOLD"
+            signal_color = "#f59e0b"  # Yellow
+            reason = "Insufficient data for MA"
+        elif vs_ma_pct >= 40:
+            signal = "SELL"
+            signal_color = "#dc2626"  # Red
+            reason = f"Overbought (+{vs_ma_pct:.1f}% above MA)"
+        elif vs_ma_pct <= -10:
+            signal = "SELL"
+            signal_color = "#dc2626"  # Red
+            reason = f"Downtrend ({vs_ma_pct:.1f}% below MA)"
+        elif 0 <= vs_ma_pct <= 15:
+            signal = "BUY"
+            signal_color = "#16a34a"  # Green
+            reason = f"Healthy uptrend (+{vs_ma_pct:.1f}% above MA)"
+        else:
+            signal = "HOLD"
+            signal_color = "#f59e0b"  # Yellow
+            reason = f"Extended ({vs_ma_pct:+.1f}%), wait for pullback"
+        
+        # Create figure
+        fig, ax = plt.subplots(figsize=(12, 7))
+        
+        # Style
+        fig.patch.set_facecolor('#1a1a2e')
+        ax.set_facecolor('#16213e')
+        
+        # Convert dates
+        dates = pd.to_datetime(df['Date'])
+        
+        # Plot price line
+        ax.plot(dates, df['Close'], 
+                color='#00d4ff', linewidth=2, label=f'{symbol} Price', zorder=3)
+        
+        # Plot MA line
+        if rolling_col in df.columns:
+            valid_avg = df[rolling_col].notna()
+            ax.plot(dates[valid_avg], df.loc[valid_avg, rolling_col],
+                   color='#ff6b6b', linewidth=2.5, linestyle='--',
+                   label=f'{self.config.rolling_window}-Day MA', zorder=3)
+        
+        # Fill between price and MA for visual
+        if rolling_col in df.columns and latest_ma:
+            valid_mask = df[rolling_col].notna()
+            ax.fill_between(dates[valid_mask], 
+                           df.loc[valid_mask, 'Close'], 
+                           df.loc[valid_mask, rolling_col],
+                           where=(df.loc[valid_mask, 'Close'] >= df.loc[valid_mask, rolling_col]),
+                           alpha=0.2, color='#16a34a', interpolate=True)
+            ax.fill_between(dates[valid_mask], 
+                           df.loc[valid_mask, 'Close'], 
+                           df.loc[valid_mask, rolling_col],
+                           where=(df.loc[valid_mask, 'Close'] < df.loc[valid_mask, rolling_col]),
+                           alpha=0.2, color='#dc2626', interpolate=True)
+        
+        # Title with signal badge
+        ax.set_title(f'{symbol}  •  ${latest_price:.2f}', 
+                    fontsize=20, fontweight='bold', color='white', pad=20)
+        
+        # Add signal badge
+        bbox_props = dict(boxstyle="round,pad=0.5", facecolor=signal_color, edgecolor='none', alpha=0.9)
+        ax.text(0.98, 0.95, f' {signal} ', transform=ax.transAxes, fontsize=16,
+                fontweight='bold', color='white', ha='right', va='top', bbox=bbox_props)
+        
+        # Add reason text
+        ax.text(0.98, 0.88, reason, transform=ax.transAxes, fontsize=11,
+                color='#a0a0a0', ha='right', va='top')
+        
+        # Add MA value if available
+        if latest_ma:
+            ax.text(0.02, 0.95, f'150-Day MA: ${latest_ma:.2f}', transform=ax.transAxes,
+                   fontsize=12, color='#ff6b6b', ha='left', va='top', fontweight='bold')
+            ax.text(0.02, 0.89, f'vs MA: {vs_ma_pct:+.1f}%', transform=ax.transAxes,
+                   fontsize=11, color='#a0a0a0', ha='left', va='top')
+        
+        # Styling
+        ax.set_xlabel('Date', fontsize=11, color='#a0a0a0')
+        ax.set_ylabel('Price ($)', fontsize=11, color='#a0a0a0')
+        ax.tick_params(colors='#a0a0a0')
+        ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %Y'))
+        ax.xaxis.set_major_locator(mdates.MonthLocator(interval=2))
+        plt.setp(ax.xaxis.get_majorticklabels(), rotation=45, ha='right')
+        
+        # Grid
+        ax.grid(True, alpha=0.2, color='#a0a0a0')
+        ax.legend(loc='lower left', fontsize=10, facecolor='#16213e', edgecolor='#a0a0a0', labelcolor='white')
+        
+        # Spine colors
+        for spine in ax.spines.values():
+            spine.set_color('#a0a0a0')
+        
+        plt.tight_layout()
+        
+        # Save
+        save_path = Path(save_dir)
+        save_path.mkdir(parents=True, exist_ok=True)
+        chart_path = save_path / f"{symbol}.png"
+        plt.savefig(chart_path, dpi=150, bbox_inches='tight', facecolor='#1a1a2e')
+        plt.close()
+        
+        return str(chart_path)
