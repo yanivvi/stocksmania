@@ -2,8 +2,8 @@ name: Daily Stock Update
 
 on:
   schedule:
-    # Runs at 6pm Israel time (4pm UTC) on weekdays
-    - cron: '0 16 * * 1-5'
+    # Runs at 6am Israel time (4am UTC) on weekdays
+    - cron: '0 4 * * 1-5'
   
   # Allow manual trigger
   workflow_dispatch:
