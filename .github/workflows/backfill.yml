@@ -60,7 +60,7 @@ jobs:
           echo "Tickers to backfill: $TICKERS"
           echo "tickers=$TICKERS" >> "$GITHUB_OUTPUT"
 
-      - name: Refetch historical data (overwrites CSVs)
+      - name: Refetch historical data and regenerate charts
         run: python main.py initial -s ${{ steps.list.outputs.tickers }}
 
       - name: Commit refreshed data and charts

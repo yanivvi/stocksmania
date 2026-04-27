@@ -357,6 +357,10 @@ class StockFetcher:
             df = self.fetch_historical(symbol)
             if not df.empty:
                 self.save_data(df, symbol)
+                try:
+                    self.generate_stock_chart(symbol)
+                except Exception as e:
+                    print(f"⚠️  chart generation failed for {symbol}: {e}")
                 results[symbol] = df
             else:
                 self.last_failures.append(symbol)
