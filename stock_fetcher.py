@@ -27,21 +27,39 @@ class StockFetcher:
     
     def _fetch_stooq(self, symbol: str, start: date, end: date) -> pd.DataFrame:
         """Fetch data from Stooq - free, full history."""
-        # Stooq uses .US suffix for US stocks
+        from io import StringIO
+
         stooq_symbol = f"{symbol}.US"
-        url = f"https://stooq.com/q/d/l/?s={stooq_symbol}&d1={start.strftime('%Y%m%d')}&d2={end.strftime('%Y%m%d')}&i=d"
-        
+        url = (
+            f"https://stooq.com/q/d/l/?s={stooq_symbol}"
+            f"&d1={start.strftime('%Y%m%d')}&d2={end.strftime('%Y%m%d')}&i=d"
+        )
+
         try:
-            df = pd.read_csv(url)
+            resp = requests.get(url, timeout=30, headers={"User-Agent": "stocksmania/1.0"})
+            if resp.status_code != 200:
+                print(f"⚠️  Stooq HTTP {resp.status_code} for {symbol}")
+                return pd.DataFrame()
+
+            text = resp.text.strip()
+            # Stooq returns "No data" or HTML for unknown tickers.
+            if not text or text.lower().startswith("<") or "no data" in text.lower():
+                print(f"⚠️  Stooq has no data for {symbol}")
+                return pd.DataFrame()
+            if not text.lower().startswith("date,"):
+                print(f"⚠️  Stooq unexpected response for {symbol}: {text[:60]!r}")
+                return pd.DataFrame()
+
+            df = pd.read_csv(StringIO(text))
             if df.empty or 'Close' not in df.columns:
                 return pd.DataFrame()
-            
+
             df = df[['Date', 'Close']].copy()
             df['Date'] = pd.to_datetime(df['Date']).dt.date
             df = df.sort_values('Date').reset_index(drop=True)
             return df
         except Exception as e:
-            print(f"⚠️  Stooq error: {e}")
+            print(f"⚠️  Stooq error for {symbol}: {e}")
             return pd.DataFrame()
     
     def _fetch_alpha_vantage(self, symbol: str, start: date, end: date) -> pd.DataFrame:
@@ -290,18 +308,23 @@ class StockFetcher:
         """
         symbols = symbols or self.config.symbols
         results = {}
-        
+        self.last_failures: list[str] = []
+
         print("=" * 60)
         print("🚀 INITIAL HISTORICAL DATA FETCH")
         print("=" * 60)
-        
+
         for symbol in symbols:
             df = self.fetch_historical(symbol)
             if not df.empty:
                 self.save_data(df, symbol)
                 results[symbol] = df
+            else:
+                self.last_failures.append(symbol)
             print()
-        
+
+        if self.last_failures:
+            print(f"❌ Failed to fetch: {', '.join(self.last_failures)}")
         return results
     
     def run_daily(self, symbols: list[str] | None = None) -> dict[str, pd.DataFrame]:
@@ -316,17 +339,28 @@ class StockFetcher:
         """
         symbols = symbols or self.config.symbols
         results = {}
-        
+        self.last_failures: list[str] = []
+
         print("=" * 60)
         print("📅 DAILY DATA UPDATE")
         print("=" * 60)
-        
+
+        today = date.today()
         for symbol in symbols:
             df = self.update_data(symbol)
-            if not df.empty:
+            if df.empty:
+                self.last_failures.append(symbol)
+            else:
                 results[symbol] = df
+                # Warn if the latest row is more than 5 calendar days old.
+                latest = df['Date'].iloc[-1]
+                age = (today - latest).days
+                if age > 5:
+                    print(f"⚠️  {symbol}: latest data is {age} days old ({latest})")
             print()
-        
+
+        if self.last_failures:
+            print(f"❌ Failed to update: {', '.join(self.last_failures)}")
         return results
     
     def display_data(self, df: pd.DataFrame, symbol: str, tail: int = 20) -> None:

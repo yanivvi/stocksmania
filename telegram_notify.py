@@ -64,14 +64,19 @@ def load_stock_data(symbol: str) -> dict | None:
     csv_path = Path("data") / f"{symbol}_prices.csv"
     if not csv_path.exists():
         return None
-    
+
     df = pd.read_csv(csv_path)
     if len(df) < 2:
         return None
-    
+
     latest = df.iloc[-1]
     prev = df.iloc[-2]
-    
+
+    try:
+        latest_date = pd.to_datetime(latest['Date']).date()
+    except Exception:
+        latest_date = None
+
     price = latest['Close']
     ma_col = f'Rolling_Avg_{ROLLING_WINDOW}d'
     ma_150 = latest.get(ma_col) if ma_col in df.columns else None
@@ -89,7 +94,8 @@ def load_stock_data(symbol: str) -> dict | None:
         'price': price,
         'ma_150': ma_150,
         'vs_ma': vs_ma,
-        'daily_change': daily_change
+        'daily_change': daily_change,
+        'latest_date': latest_date,
     }
 
 
@@ -227,14 +233,30 @@ def main():
     buy_stocks.sort(key=lambda x: x[3], reverse=True)
     sell_stocks.sort(key=lambda x: x[3], reverse=True)
     
-    today = date.today().strftime("%b %d, %Y")
-    
+    today_d = date.today()
+    today = today_d.strftime("%b %d, %Y")
+
+    # Detect ghost tickers (in stocks.txt but no data) and stale data.
+    missing = [s for s in symbols if not (Path("data") / f"{s}_prices.csv").exists()]
+    stale = []
+    for s, d in all_stocks.items():
+        ld = d.get('latest_date')
+        if ld and (today_d - ld).days > 5:
+            stale.append((s, (today_d - ld).days))
+
     # === Send Header Message ===
     header = f"📈 <b>StocksMania Daily Report</b>\n"
     header += f"📅 {today}\n"
     header += "━━━━━━━━━━━━━━━━━━━━\n\n"
     header += f"🟢 BUY signals: {len(buy_stocks)}\n"
     header += f"🔴 SELL signals: {len(sell_stocks)}\n"
+
+    if missing:
+        header += f"\n⚠️ <b>No data for:</b> {', '.join(missing)}\n"
+    if stale:
+        worst = max(d for _, d in stale)
+        names = ", ".join(f"{s}({d}d)" for s, d in stale[:8])
+        header += f"\n⚠️ <b>Stale data</b> (worst: {worst}d): {names}\n"
     
     print("\n📤 Sending header...")
     send_telegram_message(header)

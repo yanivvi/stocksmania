@@ -181,9 +181,14 @@ API Key:
         )
         fetcher = StockFetcher(config, api_key=api_key)
         results = fetcher.run_daily()
-        
+
         for symbol, df in results.items():
             fetcher.display_data(df, symbol, tail=args.display)
+
+        # Fail the run if every symbol failed, so the GitHub Action goes red.
+        if not results and args.symbols:
+            print("❌ All symbols failed to update.")
+            raise SystemExit(2)
             
     elif args.command == 'show':
         config = StockConfig(rolling_window=args.window)

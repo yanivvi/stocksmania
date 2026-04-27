@@ -11,58 +11,117 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: stocks-data
+  cancel-in-progress: false
+
 jobs:
   add-stock:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-      
+
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.12'
-      
+          cache: 'pip'
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-      
-      - name: Fetch historical data for new stocks
+
+      - name: Validate, fetch, and add tickers
+        id: add
+        env:
+          RAW_TICKERS: ${{ github.event.inputs.tickers }}
         run: |
-          echo "📈 Fetching data for: ${{ github.event.inputs.tickers }}"
-          python main.py initial -s ${{ github.event.inputs.tickers }}
-      
-      - name: Update stocks.txt
-        run: |
-          TICKERS="${{ github.event.inputs.tickers }}"
-          
-          for ticker in $TICKERS; do
-            if ! grep -q "^$ticker$" stocks.txt; then
-              echo "$ticker" >> stocks.txt
-              echo "✅ Added $ticker to stocks.txt"
+          set -euo pipefail
+          # Sanitize: uppercase, only A-Z/0-9/.-, dedupe, drop empties
+          CLEAN=$(printf '%s\n' $RAW_TICKERS \
+            | tr '[:lower:]' '[:upper:]' \
+            | grep -E '^[A-Z0-9.\-]{1,10}$' \
+            | sort -u \
+            | tr '\n' ' ' || true)
+
+          if [ -z "${CLEAN// }" ]; then
+            echo "❌ No valid tickers in input: $RAW_TICKERS"
+            exit 1
+          fi
+
+          echo "📈 Validated tickers: $CLEAN"
+          echo "raw=$CLEAN" >> "$GITHUB_OUTPUT"
+
+          # Fetch data; only tickers that produced a CSV are considered successful.
+          python main.py initial -s $CLEAN
+
+          ADDED=()
+          SKIPPED=()
+          FAILED=()
+          for t in $CLEAN; do
+            if [ ! -s "data/${t}_prices.csv" ]; then
+              FAILED+=("$t")
+              continue
+            fi
+            if grep -qx "$t" stocks.txt; then
+              SKIPPED+=("$t")
             else
-              echo "⏭️ $ticker already in stocks.txt"
+              echo "$t" >> stocks.txt
+              ADDED+=("$t")
             fi
           done
-      
+
+          # Keep stocks.txt tidy: preserve leading comments, dedupe tickers (preserve order).
+          {
+            grep -E '^(#|$)' stocks.txt || true
+            grep -vE '^(#|$)' stocks.txt | awk '!seen[$0]++'
+          } > stocks.txt.new
+          mv stocks.txt.new stocks.txt
+
+          {
+            echo "added=${ADDED[*]:-}"
+            echo "skipped=${SKIPPED[*]:-}"
+            echo "failed=${FAILED[*]:-}"
+          } >> "$GITHUB_OUTPUT"
+
+          echo "✅ Added: ${ADDED[*]:-(none)}"
+          echo "⏭️  Skipped (already present): ${SKIPPED[*]:-(none)}"
+          echo "❌ Failed (no data, NOT added): ${FAILED[*]:-(none)}"
+
+          # Fail the job if every requested ticker failed - so the user notices.
+          if [ ${#ADDED[@]} -eq 0 ] && [ ${#SKIPPED[@]} -eq 0 ]; then
+            echo "::error::No tickers were added; all fetches failed."
+            exit 1
+          fi
+
       - name: Commit and push changes
+        if: steps.add.outputs.added != ''
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          git add -A
-          git diff --quiet && git diff --staged --quiet || git commit -m "➕ Add stocks: ${{ github.event.inputs.tickers }}"
+          git add stocks.txt data/ charts/
+          git diff --quiet && git diff --staged --quiet || \
+            git commit -m "➕ Add stocks: ${{ steps.add.outputs.added }}"
           git push
-      
+
       - name: Send confirmation to Telegram
+        if: always()
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          ADDED: ${{ steps.add.outputs.added }}
+          SKIPPED: ${{ steps.add.outputs.skipped }}
+          FAILED: ${{ steps.add.outputs.failed }}
         run: |
-          MESSAGE="✅ Added new stocks: ${{ github.event.inputs.tickers }}%0A%0AThey will appear in tomorrow's report!"
+          MSG="📊 Add Stock result:%0A"
+          [ -n "$ADDED" ]   && MSG="${MSG}✅ Added: ${ADDED}%0A"
+          [ -n "$SKIPPED" ] && MSG="${MSG}⏭️ Already tracked: ${SKIPPED}%0A"
+          [ -n "$FAILED" ]  && MSG="${MSG}❌ Failed (no data): ${FAILED}%0A"
           curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
-            -d "chat_id=${TELEGRAM_CHAT_ID}" \
-            -d "text=${MESSAGE}"
+            --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
+            --data-urlencode "text=${MSG}" > /dev/null
