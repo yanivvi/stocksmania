@@ -272,16 +272,30 @@ class StockFetcher:
                 self.save_data(df, symbol)
             return df
 
-        # If there's a gap of more than a couple of days, backfill the whole gap
-        # instead of just grabbing the latest point. This handles cases where the
-        # daily workflow was broken/skipped for a while.
+        # If there's a gap of more than a couple of days OR internal gaps in the
+        # series, backfill the whole range instead of just grabbing the latest point.
+        # This handles cases where the daily workflow was broken/skipped for a while.
         last_stored = existing['Date'].max()
         today_d = date.today()
         gap_days = (today_d - last_stored).days
 
-        if gap_days > 3:
-            print(f"📥 {symbol}: gap of {gap_days}d since {last_stored}, backfilling...")
-            new_df = self._download_with_retry(symbol, last_stored + timedelta(days=1), today_d)
+        # Detect internal gaps (any pair of consecutive rows >5 calendar days apart
+        # would always include at least one missing trading day).
+        existing_sorted = existing.sort_values('Date').reset_index(drop=True)
+        date_diffs = pd.to_datetime(existing_sorted['Date']).diff().dt.days
+        gap_positions = list(date_diffs[date_diffs > 5].index)
+        has_internal_gap = bool(gap_positions)
+
+        if gap_days > 3 or has_internal_gap:
+            # Start from either: (a) the day after the row preceding the first
+            # internal gap, or (b) the day after last stored row (tail-gap case).
+            if has_internal_gap:
+                start = existing_sorted.loc[gap_positions[0] - 1, 'Date'] + timedelta(days=1)
+                print(f"📥 {symbol}: internal gap detected, refetching from {start}")
+            else:
+                start = last_stored + timedelta(days=1)
+                print(f"📥 {symbol}: tail gap of {gap_days}d since {last_stored}, backfilling...")
+            new_df = self._download_with_retry(symbol, start, today_d)
             if new_df.empty:
                 print(f"⚠️  No new data fetched for {symbol}")
                 return existing

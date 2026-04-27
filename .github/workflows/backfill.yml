@@ -1,0 +1,96 @@
+name: Backfill Historical Data
+
+on:
+  workflow_dispatch:
+    inputs:
+      tickers:
+        description: 'Tickers to refetch (space-separated, or "all")'
+        required: true
+        default: 'all'
+        type: string
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: stocks-data
+  cancel-in-progress: false
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    outputs:
+      site_built: ${{ steps.site.outputs.built }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Resolve ticker list
+        id: list
+        env:
+          RAW: ${{ github.event.inputs.tickers }}
+        run: |
+          set -euo pipefail
+          if [ "$RAW" = "all" ]; then
+            TICKERS=$(grep -v '^#' stocks.txt | grep -v '^$' | tr '\n' ' ')
+          else
+            TICKERS=$(printf '%s\n' $RAW | tr '[:lower:]' '[:upper:]' \
+              | grep -E '^[A-Z0-9.\-]{1,10}$' | sort -u | tr '\n' ' ')
+          fi
+          if [ -z "${TICKERS// }" ]; then
+            echo "::error::No valid tickers"
+            exit 1
+          fi
+          echo "Tickers to backfill: $TICKERS"
+          echo "tickers=$TICKERS" >> "$GITHUB_OUTPUT"
+
+      - name: Refetch historical data (overwrites CSVs)
+        run: python main.py initial -s ${{ steps.list.outputs.tickers }}
+
+      - name: Commit refreshed data and charts
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add data/ charts/
+          git diff --quiet && git diff --staged --quiet || \
+            git commit -m "🩹 Backfill historical data: ${{ steps.list.outputs.tickers }}"
+          git push
+
+      - name: Build status site
+        id: site
+        run: |
+          python build_site.py
+          echo "built=true" >> "$GITHUB_OUTPUT"
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy-pages:
+    needs: backfill
+    if: needs.backfill.outputs.site_built == 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

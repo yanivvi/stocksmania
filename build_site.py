@@ -26,6 +26,7 @@ OVERBOUGHT = 40
 REPO_URL = "https://github.com/yanivvi/stocksmania"
 DAILY_WF_URL = f"{REPO_URL}/actions/workflows/daily_update.yml"
 ADD_WF_URL = f"{REPO_URL}/actions/workflows/add_stock.yml"
+BACKFILL_WF_URL = f"{REPO_URL}/actions/workflows/backfill.yml"
 
 ROOT = Path(__file__).parent
 SITE = ROOT / "site"
@@ -260,6 +261,9 @@ def render(rows: list[dict], today: date) -> str:
     </a>
     <a class="btn secondary" href="{ADD_WF_URL}" target="_blank" rel="noopener" title="Opens GitHub – fill in ticker(s) and click 'Run workflow'">
       ➕ Add ticker
+    </a>
+    <a class="btn secondary" href="{BACKFILL_WF_URL}" target="_blank" rel="noopener" title="Refetch full history (overwrites CSVs). Use 'all' or specific tickers.">
+      🩹 Backfill
     </a>
   </div>
 
