@@ -336,4 +336,62 @@ MIT License - feel free to use and modify!
 
 ---
 
+## 🛠️ Operations
+
+### Local development
+
+```bash
+make install   # install runtime + dev deps
+make test      # pytest
+make lint      # ruff
+make site      # build ./site
+make daily     # run the daily fetch + report locally
+make validate  # data-quality check
+make backfill TICKERS=NVDA AAPL   # or TICKERS=all
+```
+
+### GitHub Pages status site
+
+A live status page is deployed automatically by the daily workflow:
+`https://yanivvi.github.io/stocksmania/`
+
+It includes per-ticker detail pages, top/bottom-3 recap, multi-select filters,
+and dark/light theme toggle. The "Refresh data" / "Add ticker" / "Backfill"
+buttons deep-link to the corresponding GitHub Actions workflows.
+
+### Data quality
+
+`validate_data.py` runs in the daily workflow with `--warn-only --notify` and as
+a strict pre-commit gate that refuses to commit if any CSV lost rows or has
+NaN closes. Internal-gap detection in `update_data` automatically backfills
+missed days on the next successful run.
+
+### Recommended branch protection
+
+To protect `main` from accidental bad pushes (since the bot writes to it
+daily), add the following branch-protection rule on GitHub:
+
+- **Require status checks before merging** → `CI / test`
+- **Do not allow force pushes**
+- (The bot's commits go through normal pushes, not merges, so don't enable
+  "Require pull request" — that would break the daily workflow.)
+
+### GitHub Actions are pinned to commit SHAs
+
+All third-party actions in `.github/workflows/` are referenced by SHA with a
+human-readable `# vX` comment, which mitigates supply-chain risk. When
+upgrading, replace the SHA with the new tag's commit SHA (`gh api repos/<owner>/<repo>/git/refs/tags/<tag> --jq '.object.sha'`).
+
+### Fetch metrics
+
+Each provider call is logged to `logs/fetch_metrics.jsonl` (committed by the
+daily workflow). Useful for spotting "Stooq fails 30% of the time on Mondays"
+or "Tiingo gives stale weekend close" patterns:
+
+```bash
+jq -s 'group_by(.provider) | map({provider: .[0].provider, total: length, ok: map(select(.ok)) | length})' logs/fetch_metrics.jsonl
+```
+
+---
+
 Made with ❤️ and Python

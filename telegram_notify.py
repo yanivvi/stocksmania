@@ -2,12 +2,13 @@
 """Send daily stock report with charts and BUY/SELL recommendations to Telegram."""
 
 import os
-import requests
-import pandas as pd
-from pathlib import Path
 from datetime import date
+from pathlib import Path
 
-from config import StockConfig, DEFAULT_CONFIG
+import pandas as pd
+import requests
+
+from config import StockConfig
 from stock_fetcher import StockFetcher
 
 # Telegram Config (from environment variables)
@@ -245,7 +246,7 @@ def main():
             stale.append((s, (today_d - ld).days))
 
     # === Send Header Message ===
-    header = f"📈 <b>StocksMania Daily Report</b>\n"
+    header = "📈 <b>StocksMania Daily Report</b>\n"
     header += f"📅 {today}\n"
     header += "━━━━━━━━━━━━━━━━━━━━\n\n"
     header += f"🟢 BUY signals: {len(buy_stocks)}\n"
@@ -263,7 +264,7 @@ def main():
     
     # === Send TOP 3 BUY Charts with Scores ===
     if buy_stocks:
-        print(f"\n📤 Sending top 3 BUY recommendations...")
+        print("\n📤 Sending top 3 BUY recommendations...")
         send_telegram_message("🟢 <b>═══ TOP 3 BUY SIGNALS ═══</b>")
         
         # Top 3 with charts
@@ -293,7 +294,7 @@ def main():
     
     # === Send TOP 3 SELL Charts with Scores ===
     if sell_stocks:
-        print(f"\n📤 Sending top 3 SELL warnings...")
+        print("\n📤 Sending top 3 SELL warnings...")
         send_telegram_message("🔴 <b>═══ TOP 3 SELL/AVOID ═══</b>")
         
         # Top 3 with charts
@@ -324,7 +325,7 @@ def main():
     
     # === MY HOLDINGS Check ===
     if MY_HOLDINGS:
-        print(f"\n📤 Sending holdings check...")
+        print("\n📤 Sending holdings check...")
         holdings_msg = "💼 <b>═══ YOUR HOLDINGS ═══</b>\n\n"
         
         for symbol in MY_HOLDINGS:

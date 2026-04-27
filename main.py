@@ -91,6 +91,11 @@ API Key:
         default=20,
         help='Number of rows to display (default: 20)'
     )
+    initial_parser.add_argument(
+        '--force',
+        action='store_true',
+        help='Re-download full history even when a CSV already exists (default: cache & extend)'
+    )
     
     # Daily command
     daily_parser = subparsers.add_parser('daily', help='Update with latest data')
@@ -169,7 +174,7 @@ API Key:
             historical_start=args.start
         )
         fetcher = StockFetcher(config, api_key=api_key)
-        results = fetcher.run_initial()
+        results = fetcher.run_initial(force=args.force)
         
         for symbol, df in results.items():
             fetcher.display_data(df, symbol, tail=args.display)

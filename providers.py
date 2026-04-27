@@ -3,9 +3,9 @@
 import time
 from abc import ABC, abstractmethod
 from datetime import date, timedelta
-from typing import Optional
-import requests
+
 import pandas as pd
+import requests
 
 
 class DataProvider(ABC):
@@ -131,7 +131,7 @@ class FMPProvider(DataProvider):
             data = response.json()
             
             if "historical" not in data:
-                print(f"FMP error: No data returned")
+                print("FMP error: No data returned")
                 return pd.DataFrame()
             
             records = []
@@ -168,18 +168,18 @@ class MultiProvider:
                 return df
             time.sleep(1)  # Be nice to APIs
         
-        print(f"   ❌ All providers failed")
+        print("   ❌ All providers failed")
         return pd.DataFrame()
 
 
-def get_default_provider(api_key: Optional[str] = None) -> DataProvider:
+def get_default_provider(api_key: str | None = None) -> DataProvider:
     """Get the default provider based on available API keys."""
     if api_key:
         return AlphaVantageProvider(api_key)
     return YahooFinanceProvider()
 
 
-def get_multi_provider(alpha_vantage_key: Optional[str] = None) -> MultiProvider:
+def get_multi_provider(alpha_vantage_key: str | None = None) -> MultiProvider:
     """Get a multi-provider that tries multiple sources."""
     providers = [YahooFinanceProvider()]
     

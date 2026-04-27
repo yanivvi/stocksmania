@@ -23,12 +23,12 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6
         with:
           python-version: '3.12'
           cache: 'pip'
@@ -44,6 +44,15 @@ jobs:
           echo "Updating: $TICKERS"
           python main.py daily -s $TICKERS
 
+      - name: Validate data quality
+        id: validate
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        # warn-only: don't kill the run before the daily report is sent.
+        # --notify: alerts on Telegram only when thresholds are crossed.
+        run: python validate_data.py --warn-only --notify
+
       - name: Send Telegram notification
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -51,11 +60,28 @@ jobs:
           MY_HOLDINGS: ${{ secrets.MY_HOLDINGS }}
         run: python telegram_notify.py
 
+      - name: Pre-commit data integrity check
+        # Strict: blocks commit if a CSV lost rows or has NaN closes.
+        run: |
+          python - <<'PY'
+          import sys
+          import json
+          import subprocess
+          out = subprocess.check_output(
+              ["python", "validate_data.py", "--warn-only", "--json"], text=True
+          )
+          summary = json.loads(out)["summary"]
+          if summary["shrunk"] or summary["nan"]:
+              print("❌ refusing to commit: data regression detected")
+              print(json.dumps(summary, indent=2, default=str))
+              sys.exit(1)
+          PY
+
       - name: Commit updated data and charts
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          git add data/ charts/
+          git add data/ charts/ logs/fetch_metrics.jsonl 2>/dev/null || true
           git diff --quiet && git diff --staged --quiet || \
             git commit -m "📈 Daily stock update - $(date +'%Y-%m-%d')"
           git push
@@ -67,7 +93,7 @@ jobs:
           echo "built=true" >> "$GITHUB_OUTPUT"
 
       - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
         with:
           path: site
 
@@ -81,4 +107,4 @@ jobs:
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4

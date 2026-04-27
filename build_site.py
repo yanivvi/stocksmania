@@ -11,9 +11,8 @@ Generates index.html showing every ticker in stocks.txt with:
 """
 from __future__ import annotations
 
-import json
 import shutil
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 import pandas as pd
@@ -32,6 +31,113 @@ ROOT = Path(__file__).parent
 SITE = ROOT / "site"
 DATA = ROOT / "data"
 CHARTS = ROOT / "charts"
+
+
+SITE_CSS = """\
+:root {
+  --bg: #0d1117; --surface: #161b22; --surface-2: #0d1117;
+  --border: #30363d; --text: #e6edf3; --muted: #8b949e;
+  --green: #56d364; --green-bg: #103a1d;
+  --red: #ff7b72; --red-bg: #3a1416;
+  --amber: #d29922; --amber-bg: #2a2410;
+  --link: #58a6ff;
+  color-scheme: dark;
+}
+[data-theme="light"] {
+  --bg: #f6f8fa; --surface: #ffffff; --surface-2: #f0f3f6;
+  --border: #d0d7de; --text: #1f2328; --muted: #57606a;
+  --green: #1a7f37; --green-bg: #dafbe1;
+  --red: #cf222e; --red-bg: #ffebe9;
+  --amber: #9a6700; --amber-bg: #fff8c5;
+  --link: #0969da;
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  background: var(--bg); color: var(--text); margin: 0; padding: 24px;
+  transition: background .2s, color .2s; }
+@media (max-width: 600px) { body { padding: 14px; } }
+h1 { margin: 0 0 4px; font-size: 28px; }
+.sub { color: var(--muted); margin-bottom: 16px; }
+.topbar { display: flex; align-items: flex-start; gap: 12px;
+  justify-content: space-between; flex-wrap: wrap; }
+.toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+.btn { display: inline-flex; align-items: center; gap: 6px;
+  background: #238636; color: #fff; border: 1px solid #2ea043;
+  padding: 8px 14px; border-radius: 6px; font-weight: 600;
+  text-decoration: none; font-size: 13px; cursor: pointer; }
+.btn:hover { background: #2ea043; }
+.btn.secondary { background: var(--surface); border-color: var(--border); color: var(--text); }
+.btn.secondary:hover { background: var(--surface-2); }
+.theme-toggle { background: var(--surface); border: 1px solid var(--border);
+  color: var(--text); padding: 6px 10px; border-radius: 6px;
+  font-size: 13px; cursor: pointer; }
+.summary { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
+.pill { background: var(--surface); border: 1px solid var(--border); border-radius: 999px;
+  padding: 6px 14px; font-size: 13px; }
+.pill b { color: var(--text); }
+.pill.bad { border-color: var(--red); background: var(--red-bg); }
+.pill.warn { border-color: var(--amber); background: var(--amber-bg); }
+.recap { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 24px; }
+@media (max-width: 700px) { .recap { grid-template-columns: 1fr; } }
+.recap-box { background: var(--surface); border: 1px solid var(--border);
+  border-radius: 10px; padding: 12px 14px; }
+.recap-box h3 { margin: 0 0 8px; font-size: 14px; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .06em; }
+.recap-box.up { border-color: var(--green); }
+.recap-box.down { border-color: var(--red); }
+.mini { display: inline-flex; align-items: center; gap: 8px; margin: 0 6px 6px 0;
+  padding: 4px 10px; background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: 999px; font-size: 13px; text-decoration: none; color: var(--text); }
+.mini b { color: var(--text); }
+.mini .up { color: var(--green); } .mini .down { color: var(--red); }
+.mini:hover { border-color: var(--link); }
+.filters { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+  padding: 12px 14px; margin-bottom: 20px; }
+.filters label { display: flex; flex-direction: column; gap: 4px; font-size: 12px;
+  color: var(--muted); }
+.filters select { background: var(--surface-2); color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px; padding: 6px 8px; min-width: 180px;
+  font-size: 13px; }
+.filters select[multiple] { height: 90px; }
+.filters .hint { font-size: 11px; color: var(--muted); }
+#count { color: var(--muted); font-size: 13px; margin-left: auto; }
+.grid-cards { display: grid; gap: 16px;
+  grid-template-columns: repeat(auto-fill,minmax(320px,1fr)); }
+@media (max-width: 600px) { .grid-cards { grid-template-columns: 1fr; } }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+  padding: 14px; }
+.card.no-ma { border-color: var(--border); }
+.card.buy { border-color: var(--green); }
+.card.sell { border-color: var(--red); }
+.card.hidden { display: none; }
+.card header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.card h2 { margin: 0; font-size: 18px; flex: 1; }
+.card h2 a { color: inherit; text-decoration: none; }
+.card h2 a:hover { color: var(--link); }
+.signal { font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 4px;
+  letter-spacing: .04em; }
+.signal.buy { background: var(--green-bg); color: var(--green); }
+.signal.sell { background: var(--red-bg); color: var(--red); }
+.signal.hold { background: var(--amber-bg); color: var(--amber); }
+.signal.no-ma { background: var(--surface-2); color: var(--muted); }
+.fresh { font-size: 11px; padding: 3px 8px; border-radius: 4px; }
+.fresh.ok { background: var(--green-bg); color: var(--green); }
+.fresh.warn { background: var(--amber-bg); color: var(--amber); }
+.fresh.stale, .fresh.missing { background: var(--red-bg); color: var(--red); }
+.card img { width: 100%; border-radius: 6px; background: #fff; margin-bottom: 10px; }
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 14px; font-size: 13px; }
+.lbl { color: var(--muted); margin-right: 6px; }
+.val { color: var(--text); font-weight: 600; }
+.val.up { color: var(--green); } .val.down { color: var(--red); }
+.warn-msg { color: var(--red); padding: 8px 0; }
+.links { margin-top: 8px; font-size: 12px; }
+.links a { color: var(--link); text-decoration: none; }
+.muted { color: var(--muted); }
+footer { margin-top: 32px; color: var(--muted); font-size: 12px; }
+"""
 
 
 def read_tickers() -> list[str]:
@@ -86,6 +192,108 @@ def freshness(latest: date | None, today: date) -> tuple[str, str]:
     return ("stale", f"{age}d old")
 
 
+def render_detail_page(symbol: str, df: pd.DataFrame | None, m: dict | None,
+                        sig: str, sig_cls: str) -> str:
+    """A per-ticker page at site/t/<SYMBOL>.html."""
+    title = f"{symbol} – StocksMania"
+    if df is None or m is None:
+        body = '<p class="warn-msg">⚠️ No data available for this ticker yet.</p>'
+        head_extra = ""
+    else:
+        ma_col = f"Rolling_Avg_{ROLLING_WINDOW}d"
+        # Last 60 rows in reverse chronological order.
+        recent = df.tail(60).iloc[::-1]
+        rows_html = "".join(
+            f"<tr><td>{r['Date'].date() if hasattr(r['Date'],'date') else r['Date']}</td>"
+            f"<td>${float(r['Close']):.2f}</td>"
+            f"<td>{('$' + format(float(r[ma_col]), '.2f')) if ma_col in r and pd.notna(r[ma_col]) else '—'}</td></tr>"
+            for _, r in recent.iterrows()
+        )
+        # Stats
+        all_high = float(df['Close'].max())
+        all_low = float(df['Close'].min())
+        drawdown = (m["price"] - all_high) / all_high * 100 if all_high else 0
+        ytd_start = df[df['Close'].notna()].iloc[0]['Close']
+        ytd_pct = (m["price"] - float(ytd_start)) / float(ytd_start) * 100
+        head_extra = ""
+        body = f"""
+        <section class="card {sig_cls}" style="margin-bottom:16px">
+          <header>
+            <h2>{symbol}</h2>
+            <span class="signal {sig_cls}">{sig}</span>
+          </header>
+          <img src="../charts/{symbol}.png" alt="{symbol} chart">
+          <div class="grid">
+            <div><span class="lbl">Price</span><span class="val">${m['price']:.2f}</span></div>
+            <div><span class="lbl">Today</span><span class="val {'up' if m['daily_change']>=0 else 'down'}">{m['daily_change']:+.2f}%</span></div>
+            <div><span class="lbl">150d MA</span><span class="val">{('$' + format(m['ma'], '.2f')) if m['ma'] else '—'}</span></div>
+            <div><span class="lbl">vs MA</span><span class="val">{(format(m['vs_ma'], '+.1f') + '%') if m['vs_ma'] is not None else '—'}</span></div>
+            <div><span class="lbl">Last</span><span class="val">{m['latest_date']}</span></div>
+            <div><span class="lbl">Rows</span><span class="val">{m['rows']}</span></div>
+            <div><span class="lbl">All-time high</span><span class="val">${all_high:.2f}</span></div>
+            <div><span class="lbl">All-time low</span><span class="val">${all_low:.2f}</span></div>
+            <div><span class="lbl">From ATH</span><span class="val {'up' if drawdown>=0 else 'down'}">{drawdown:+.1f}%</span></div>
+            <div><span class="lbl">Since start</span><span class="val {'up' if ytd_pct>=0 else 'down'}">{ytd_pct:+.1f}%</span></div>
+          </div>
+          <div class="links" style="margin-top:12px">
+            <a href="../data/{symbol}_prices.csv">CSV</a>
+          </div>
+        </section>
+
+        <section class="card">
+          <header><h2 style="font-size:15px">Recent prices (last 60)</h2></header>
+          <div style="overflow:auto;max-height:520px">
+            <table style="width:100%;border-collapse:collapse;font-size:13px">
+              <thead>
+                <tr style="text-align:left;color:var(--muted)">
+                  <th style="padding:6px 8px">Date</th>
+                  <th style="padding:6px 8px">Close</th>
+                  <th style="padding:6px 8px">150d MA</th>
+                </tr>
+              </thead>
+              <tbody>{rows_html}</tbody>
+            </table>
+          </div>
+        </section>
+        """
+    return f"""<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>{title}</title>
+  {head_extra}
+  <link rel="stylesheet" href="../assets/site.css">
+</head>
+<body>
+  <div class="topbar">
+    <div>
+      <a href="../" style="color:var(--link);text-decoration:none;font-size:13px">← All tickers</a>
+      <h1 style="margin-top:6px">{symbol}</h1>
+    </div>
+    <button class="theme-toggle" id="theme-toggle" type="button" title="Toggle light/dark">🌗 Theme</button>
+  </div>
+  {body}
+  <footer>StocksMania · <a href="{REPO_URL}" style="color:var(--link)">source</a></footer>
+  <script>
+    (function () {{
+      const KEY = 'stocksmania-theme';
+      const saved = localStorage.getItem(KEY);
+      const prefersLight = window.matchMedia('(prefers-color-scheme: light)').matches;
+      document.documentElement.setAttribute('data-theme', saved || (prefersLight ? 'light' : 'dark'));
+      document.getElementById('theme-toggle').addEventListener('click', () => {{
+        const cur = document.documentElement.getAttribute('data-theme') || 'dark';
+        const next = cur === 'dark' ? 'light' : 'dark';
+        document.documentElement.setAttribute('data-theme', next);
+        localStorage.setItem(KEY, next);
+      }});
+    }})();
+  </script>
+</body>
+</html>
+"""
+
+
 def card_html(r: dict) -> str:
     sym = r["sym"]
     m = r["m"]
@@ -119,7 +327,7 @@ def card_html(r: dict) -> str:
     return f"""
       <article class="card {sig_cls}" data-symbol="{sym}" data-status="{sig}" id="{sym}">
         <header>
-          <h2>{sym}</h2>
+          <h2><a href="t/{sym}.html">{sym}</a></h2>
           <span class="signal {sig_cls}">{sig}</span>
           <span class="fresh {fresh_cls}" title="data freshness">{fresh_lbl}</span>
         </header>
@@ -174,86 +382,16 @@ def render(rows: list[dict], today: date) -> str:
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>StocksMania – Status</title>
-  <style>
-    :root {{ color-scheme: dark; }}
-    body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
-           background: #0d1117; color: #e6edf3; margin: 0; padding: 24px; }}
-    h1 {{ margin: 0 0 4px; font-size: 28px; }}
-    .sub {{ color: #8b949e; margin-bottom: 16px; }}
-    .toolbar {{ display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }}
-    .btn {{ display: inline-flex; align-items: center; gap: 6px;
-            background: #238636; color: #fff; border: 1px solid #2ea043;
-            padding: 8px 14px; border-radius: 6px; font-weight: 600;
-            text-decoration: none; font-size: 13px; cursor: pointer; }}
-    .btn:hover {{ background: #2ea043; }}
-    .btn.secondary {{ background: #21262d; border-color: #30363d; color: #c9d1d9; }}
-    .btn.secondary:hover {{ background: #30363d; }}
-    .summary {{ display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }}
-    .pill {{ background: #161b22; border: 1px solid #30363d; border-radius: 999px;
-            padding: 6px 14px; font-size: 13px; }}
-    .pill b {{ color: #fff; }}
-    .pill.bad {{ border-color: #6e2230; background: #2b1418; }}
-    .pill.warn {{ border-color: #6b5a1d; background: #2a2410; }}
-    .recap {{ display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 24px; }}
-    @media (max-width: 700px) {{ .recap {{ grid-template-columns: 1fr; }} }}
-    .recap-box {{ background: #161b22; border: 1px solid #30363d; border-radius: 10px;
-                  padding: 12px 14px; }}
-    .recap-box h3 {{ margin: 0 0 8px; font-size: 14px; color: #8b949e;
-                     text-transform: uppercase; letter-spacing: .06em; }}
-    .recap-box.up {{ border-color: #2ea04340; }}
-    .recap-box.down {{ border-color: #f8514940; }}
-    .mini {{ display: inline-flex; align-items: center; gap: 8px; margin-right: 8px;
-             padding: 4px 10px; background: #0d1117; border: 1px solid #30363d;
-             border-radius: 999px; font-size: 13px; text-decoration: none; color: #c9d1d9; }}
-    .mini b {{ color: #fff; }}
-    .mini .up {{ color: #56d364; }} .mini .down {{ color: #ff7b72; }}
-    .mini:hover {{ border-color: #58a6ff; }}
-    .filters {{ display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end;
-                background: #161b22; border: 1px solid #30363d; border-radius: 10px;
-                padding: 12px 14px; margin-bottom: 20px; }}
-    .filters label {{ display: flex; flex-direction: column; gap: 4px; font-size: 12px;
-                      color: #8b949e; }}
-    .filters select {{ background: #0d1117; color: #e6edf3; border: 1px solid #30363d;
-                       border-radius: 6px; padding: 6px 8px; min-width: 180px;
-                       font-size: 13px; }}
-    .filters select[multiple] {{ height: 90px; }}
-    .filters .hint {{ font-size: 11px; color: #6e7681; }}
-    #count {{ color: #8b949e; font-size: 13px; margin-left: auto; }}
-    .grid-cards {{ display: grid; gap: 16px;
-                   grid-template-columns: repeat(auto-fill,minmax(320px,1fr)); }}
-    .card {{ background: #161b22; border: 1px solid #30363d; border-radius: 12px;
-             padding: 14px; box-shadow: 0 1px 0 rgba(255,255,255,.02); }}
-    .card.no-ma {{ border-color: #444; }}
-    .card.buy {{ border-color: #2ea043; }}
-    .card.sell {{ border-color: #f85149; }}
-    .card.hidden {{ display: none; }}
-    .card header {{ display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }}
-    .card h2 {{ margin: 0; font-size: 18px; flex: 1; }}
-    .signal {{ font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 4px;
-               letter-spacing: .04em; }}
-    .signal.buy {{ background: #103a1d; color: #56d364; }}
-    .signal.sell {{ background: #3a1416; color: #ff7b72; }}
-    .signal.hold {{ background: #2a2410; color: #d29922; }}
-    .signal.no-ma {{ background: #21262d; color: #8b949e; }}
-    .fresh {{ font-size: 11px; padding: 3px 8px; border-radius: 4px; }}
-    .fresh.ok {{ background: #103a1d; color: #56d364; }}
-    .fresh.warn {{ background: #2a2410; color: #d29922; }}
-    .fresh.stale, .fresh.missing {{ background: #3a1416; color: #ff7b72; }}
-    .card img {{ width: 100%; border-radius: 6px; background: #fff; margin-bottom: 10px; }}
-    .grid {{ display: grid; grid-template-columns: 1fr 1fr; gap: 6px 14px; font-size: 13px; }}
-    .lbl {{ color: #8b949e; margin-right: 6px; }}
-    .val {{ color: #e6edf3; font-weight: 600; }}
-    .val.up {{ color: #56d364; }} .val.down {{ color: #ff7b72; }}
-    .warn-msg {{ color: #ff7b72; padding: 8px 0; }}
-    .links {{ margin-top: 8px; font-size: 12px; }}
-    .links a {{ color: #58a6ff; text-decoration: none; }}
-    .muted {{ color: #6e7681; }}
-    footer {{ margin-top: 32px; color: #8b949e; font-size: 12px; }}
-  </style>
+  <link rel="stylesheet" href="assets/site.css">
 </head>
 <body>
-  <h1>📈 StocksMania – Status</h1>
-  <div class="sub">Built {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')} UTC · {today}</div>
+  <div class="topbar">
+    <div>
+      <h1>📈 StocksMania – Status</h1>
+      <div class="sub">Built {datetime.now(UTC).strftime('%Y-%m-%d %H:%M:%S')} UTC · {today}</div>
+    </div>
+    <button class="theme-toggle" id="theme-toggle" type="button" title="Toggle light/dark">🌗 Theme</button>
+  </div>
 
   <div class="toolbar">
     <a class="btn" href="{DAILY_WF_URL}" target="_blank" rel="noopener" title="Opens GitHub – click 'Run workflow'">
@@ -308,6 +446,21 @@ def render(rows: list[dict], today: date) -> str:
   </footer>
 
   <script>
+    // Theme toggle: persisted in localStorage, defaults to OS preference.
+    (function () {{
+      const KEY = 'stocksmania-theme';
+      const saved = localStorage.getItem(KEY);
+      const prefersLight = window.matchMedia('(prefers-color-scheme: light)').matches;
+      const initial = saved || (prefersLight ? 'light' : 'dark');
+      document.documentElement.setAttribute('data-theme', initial);
+      document.getElementById('theme-toggle').addEventListener('click', () => {{
+        const cur = document.documentElement.getAttribute('data-theme') || 'dark';
+        const next = cur === 'dark' ? 'light' : 'dark';
+        document.documentElement.setAttribute('data-theme', next);
+        localStorage.setItem(KEY, next);
+      }});
+    }})();
+
     (function () {{
       const tickerSel = document.getElementById('f-ticker');
       const statusSel = document.getElementById('f-status');
@@ -356,6 +509,14 @@ def main() -> None:
         if src.exists():
             shutil.copytree(src, dst)
 
+    # Shared stylesheet for index + detail pages.
+    (SITE / "assets").mkdir(exist_ok=True)
+    (SITE / "assets" / "site.css").write_text(SITE_CSS)
+
+    # Per-ticker detail pages.
+    detail_dir = SITE / "t"
+    detail_dir.mkdir(exist_ok=True)
+
     rows = []
     for sym in read_tickers():
         m = load_metrics(sym)
@@ -370,12 +531,22 @@ def main() -> None:
             "fresh": freshness(m["latest_date"] if m else None, today),
         })
 
+        # Generate detail page.
+        df = None
+        csv = DATA / f"{sym}_prices.csv"
+        if csv.exists():
+            try:
+                df = pd.read_csv(csv, parse_dates=["Date"])
+            except Exception as e:
+                print(f"⚠️  detail page: failed to load {sym}: {e}")
+        (detail_dir / f"{sym}.html").write_text(render_detail_page(sym, df, m, sig, sig_cls))
+
     # Order: BUY first, SELL next, then HOLD, then NO DATA. Within group: by symbol.
     order = {"BUY": 0, "SELL": 1, "HOLD": 2, "NO DATA": 3}
     rows.sort(key=lambda r: (order.get(r["sig"], 9), r["sym"]))
 
     (SITE / "index.html").write_text(render(rows, today))
-    print(f"✅ Wrote {SITE / 'index.html'} with {len(rows)} tickers")
+    print(f"✅ Wrote {SITE / 'index.html'} + {len(rows)} detail pages")
 
 
 if __name__ == "__main__":

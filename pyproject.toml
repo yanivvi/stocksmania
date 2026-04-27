@@ -1,0 +1,12 @@
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+extend-exclude = ["venv", "data", "charts", "site"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM"]
+ignore = ["E501", "SIM108"]  # line-length; ternary preference
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

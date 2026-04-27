@@ -2,24 +2,37 @@
 
 import os
 import time
-from datetime import date, timedelta
+from collections.abc import Callable  # noqa: F401  (kept for type hints below)
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
-from typing import Optional
 
 import pandas as pd
 import requests
 
-from config import StockConfig, DEFAULT_CONFIG
+from config import DEFAULT_CONFIG, StockConfig
+
+
+def datetime_now_iso() -> str:
+    return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+METRICS_PATH = Path("logs") / "fetch_metrics.jsonl"
 
 
 class StockFetcher:
     """Fetches and manages stock price data with rolling averages."""
     
-    def __init__(self, config: StockConfig = DEFAULT_CONFIG, api_key: Optional[str] = None):
+    def __init__(self, config: StockConfig = DEFAULT_CONFIG, api_key: str | None = None):
         self.config = config
         self.data_dir = Path(config.data_dir)
         self.data_dir.mkdir(exist_ok=True)
         self.api_key = api_key or os.environ.get("ALPHA_VANTAGE_API_KEY")
+        self.tiingo_token = os.environ.get("TIINGO_API_TOKEN")
+        # Per-process metrics collector (provider, success, ms). Optional sink.
+        self.fetch_metrics: list[dict] = []
+        # Token-bucket-ish rate limiter: minimum seconds between any provider call.
+        self._last_call_at: float = 0.0
+        self._min_call_interval: float = float(os.environ.get("FETCH_MIN_INTERVAL", "0.4"))
     
     def _get_data_path(self, symbol: str) -> Path:
         """Get the CSV path for a stock symbol."""
@@ -83,7 +96,7 @@ class StockFetcher:
             if "Time Series (Daily)" not in data:
                 error = data.get("Note", data.get("Information", data.get("Error Message", "Unknown error")))
                 if "rate limit" in str(error).lower() or "25 requests" in str(error).lower():
-                    print(f"⚠️  Alpha Vantage rate limit reached (25/day free)")
+                    print("⚠️  Alpha Vantage rate limit reached (25/day free)")
                 else:
                     print(f"⚠️  Alpha Vantage: {error[:80]}...")
                 return pd.DataFrame()
@@ -134,35 +147,109 @@ class StockFetcher:
             print(f"⚠️  Yahoo Finance error: {str(e)[:60]}...")
             return pd.DataFrame()
     
-    def _download_with_retry(self, symbol: str, start: date, end: date, 
-                              max_retries: int = 2) -> pd.DataFrame:
-        """Download stock data trying multiple providers."""
-        # Try Stooq first - free and has full history
-        print(f"   Trying Stooq...")
-        df = self._fetch_stooq(symbol, start, end)
-        if not df.empty:
-            print(f"   ✅ Got {len(df)} days from Stooq")
+    def _fetch_tiingo(self, symbol: str, start: date, end: date) -> pd.DataFrame:
+        """Fetch from Tiingo (free 500 req/day with token). Returns adjusted close."""
+        if not self.tiingo_token:
+            return pd.DataFrame()
+        url = f"https://api.tiingo.com/tiingo/daily/{symbol.lower()}/prices"
+        try:
+            resp = requests.get(
+                url,
+                params={
+                    "startDate": start.isoformat(),
+                    "endDate": end.isoformat(),
+                    "format": "json",
+                    "resampleFreq": "daily",
+                },
+                headers={
+                    "Authorization": f"Token {self.tiingo_token}",
+                    "User-Agent": "stocksmania/1.0",
+                },
+                timeout=30,
+            )
+            if resp.status_code == 404:
+                return pd.DataFrame()
+            if resp.status_code == 429:
+                print("⚠️  Tiingo rate limited")
+                return pd.DataFrame()
+            if resp.status_code != 200:
+                print(f"⚠️  Tiingo HTTP {resp.status_code} for {symbol}")
+                return pd.DataFrame()
+            payload = resp.json()
+            if not isinstance(payload, list) or not payload:
+                return pd.DataFrame()
+            rows = [
+                {"Date": pd.to_datetime(r["date"]).date(), "Close": float(r.get("adjClose") or r["close"])}
+                for r in payload
+            ]
+            df = pd.DataFrame(rows).sort_values("Date").reset_index(drop=True)
             return df
-        
-        # Try Alpha Vantage if we have an API key
+        except Exception as e:
+            print(f"⚠️  Tiingo error for {symbol}: {e}")
+            return pd.DataFrame()
+
+    def flush_metrics(self) -> None:
+        """Append collected fetch metrics to logs/fetch_metrics.jsonl."""
+        if not self.fetch_metrics:
+            return
+        try:
+            METRICS_PATH.parent.mkdir(exist_ok=True)
+            import json
+            with METRICS_PATH.open("a") as f:
+                for m in self.fetch_metrics:
+                    f.write(json.dumps(m) + "\n")
+            print(f"📝 Wrote {len(self.fetch_metrics)} fetch metrics to {METRICS_PATH}")
+        except Exception as e:
+            print(f"⚠️  metrics write failed: {e}")
+        self.fetch_metrics.clear()
+
+    def _throttle(self) -> None:
+        """Sleep just enough so we don't exceed our self-imposed call rate."""
+        now = time.monotonic()
+        wait = self._min_call_interval - (now - self._last_call_at)
+        if wait > 0:
+            time.sleep(wait)
+        self._last_call_at = time.monotonic()
+
+    def _try_provider(self, name: str, fn, symbol: str, start: date, end: date,
+                       attempts: int = 2, backoff_base: float = 1.5) -> pd.DataFrame:
+        """Call a provider with throttle + simple exponential backoff retries."""
+        for i in range(attempts):
+            self._throttle()
+            t0 = time.monotonic()
+            df = fn(symbol, start, end)
+            elapsed_ms = int((time.monotonic() - t0) * 1000)
+            self.fetch_metrics.append({
+                "ts": datetime_now_iso(),
+                "symbol": symbol,
+                "provider": name,
+                "ok": not df.empty,
+                "ms": elapsed_ms,
+            })
+            if not df.empty:
+                print(f"   ✅ Got {len(df)} days from {name}")
+                return df
+            if i < attempts - 1:
+                time.sleep(backoff_base ** i)
+        return pd.DataFrame()
+
+    def _download_with_retry(self, symbol: str, start: date, end: date,
+                              max_retries: int = 2) -> pd.DataFrame:
+        """Download stock data trying multiple providers in priority order."""
+        chain: list[tuple[str, Callable]] = []
+        if self.tiingo_token:
+            chain.append(("Tiingo", self._fetch_tiingo))
+        chain.append(("Stooq", self._fetch_stooq))
         if self.api_key:
-            print(f"   Trying Alpha Vantage...")
-            df = self._fetch_alpha_vantage(symbol, start, end)
+            chain.append(("Alpha Vantage", self._fetch_alpha_vantage))
+        chain.append(("Yahoo Finance", self._fetch_yahoo))
+
+        for name, fn in chain:
+            print(f"   Trying {name}...")
+            attempts = max_retries if name in {"Yahoo Finance", "Stooq"} else 1
+            df = self._try_provider(name, fn, symbol, start, end, attempts=attempts)
             if not df.empty:
-                print(f"   ✅ Got data from Alpha Vantage")
                 return df
-            time.sleep(1)  # Rate limiting
-        
-        # Fall back to Yahoo Finance
-        print(f"   Trying Yahoo Finance...")
-        for attempt in range(max_retries):
-            df = self._fetch_yahoo(symbol, start, end)
-            if not df.empty:
-                print(f"   ✅ Got data from Yahoo Finance")
-                return df
-            if attempt < max_retries - 1:
-                time.sleep(2)
-        
         return pd.DataFrame()
     
     def fetch_historical(self, symbol: str, start_date: date | None = None, 
@@ -335,7 +422,7 @@ class StockFetcher:
         
         return combined
     
-    def run_initial(self, symbols: list[str] | None = None) -> dict[str, pd.DataFrame]:
+    def run_initial(self, symbols: list[str] | None = None, force: bool = False) -> dict[str, pd.DataFrame]:
         """
         Run initial historical data fetch for all configured symbols.
         
@@ -354,6 +441,25 @@ class StockFetcher:
         print("=" * 60)
 
         for symbol in symbols:
+            # Cache mode (default): if a non-empty CSV already exists, just
+            # ensure it's caught up via update_data() instead of re-downloading
+            # from 2025-01-01. Saves API calls and time.
+            if not force:
+                existing = self.load_existing_data(symbol)
+                if not existing.empty:
+                    print(f"📦 {symbol}: existing CSV found ({len(existing)} rows), updating tail only")
+                    df = self.update_data(symbol)
+                    if not df.empty:
+                        try:
+                            self.generate_stock_chart(symbol)
+                        except Exception as e:
+                            print(f"⚠️  chart generation failed for {symbol}: {e}")
+                        results[symbol] = df
+                    else:
+                        self.last_failures.append(symbol)
+                    print()
+                    continue
+
             df = self.fetch_historical(symbol)
             if not df.empty:
                 self.save_data(df, symbol)
@@ -368,6 +474,7 @@ class StockFetcher:
 
         if self.last_failures:
             print(f"❌ Failed to fetch: {', '.join(self.last_failures)}")
+        self.flush_metrics()
         return results
     
     def run_daily(self, symbols: list[str] | None = None) -> dict[str, pd.DataFrame]:
@@ -404,6 +511,7 @@ class StockFetcher:
 
         if self.last_failures:
             print(f"❌ Failed to update: {', '.join(self.last_failures)}")
+        self.flush_metrics()
         return results
     
     def display_data(self, df: pd.DataFrame, symbol: str, tail: int = 20) -> None:
@@ -433,7 +541,7 @@ class StockFetcher:
         print(tabulate(display_df, headers='keys', tablefmt='pretty', showindex=False))
         
         # Summary statistics
-        print(f"\n📈 Summary:")
+        print("\n📈 Summary:")
         latest_close = df['Close'].iloc[-1]
         if rolling_col in df.columns and pd.notna(df[rolling_col].iloc[-1]):
             latest_avg = df[rolling_col].iloc[-1]
@@ -455,8 +563,8 @@ class StockFetcher:
             symbols: List of stock symbols to plot (defaults to config.symbols)
             save_path: Optional path to save the chart image
         """
-        import matplotlib.pyplot as plt
         import matplotlib.dates as mdates
+        import matplotlib.pyplot as plt
         
         symbols = symbols or self.config.symbols
         rolling_col = f'Rolling_Avg_{self.config.rolling_window}d'
@@ -574,9 +682,8 @@ class StockFetcher:
         Returns:
             Path to saved chart, or None if failed
         """
-        import matplotlib.pyplot as plt
         import matplotlib.dates as mdates
-        from matplotlib.patches import Rectangle
+        import matplotlib.pyplot as plt
         
         df = self.load_existing_data(symbol)
         if df.empty:
