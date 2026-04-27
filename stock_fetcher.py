@@ -271,20 +271,45 @@ class StockFetcher:
             if not df.empty:
                 self.save_data(df, symbol)
             return df
-        
-        # Get the latest data
+
+        # If there's a gap of more than a couple of days, backfill the whole gap
+        # instead of just grabbing the latest point. This handles cases where the
+        # daily workflow was broken/skipped for a while.
+        last_stored = existing['Date'].max()
+        today_d = date.today()
+        gap_days = (today_d - last_stored).days
+
+        if gap_days > 3:
+            print(f"📥 {symbol}: gap of {gap_days}d since {last_stored}, backfilling...")
+            new_df = self._download_with_retry(symbol, last_stored + timedelta(days=1), today_d)
+            if new_df.empty:
+                print(f"⚠️  No new data fetched for {symbol}")
+                return existing
+            new_df = new_df[['Date', 'Close']].copy()
+            new_df['Date'] = pd.to_datetime(new_df['Date']).dt.date
+            new_df['Symbol'] = symbol.upper()
+            new_df = new_df[~new_df['Date'].isin(set(existing['Date']))]
+            if new_df.empty:
+                print(f"✅ {symbol}: already up to date")
+                return existing
+            print(f"➕ {symbol}: appending {len(new_df)} new rows ({new_df['Date'].iloc[0]} → {new_df['Date'].iloc[-1]})")
+            combined = pd.concat([existing, new_df], ignore_index=True)
+            combined = combined.sort_values('Date').reset_index(drop=True)
+            combined = self._add_rolling_average(combined)
+            self.save_data(combined, symbol)
+            return combined
+
+        # Small gap: cheap path - fetch just the latest day.
         latest = self.fetch_latest(symbol)
         if latest.empty:
             return existing
-        
+
         latest_date = latest['Date'].iloc[0]
-        
-        # Check if we already have this date
+
         if latest_date in existing['Date'].values:
             print(f"✅ Data for {latest_date} already exists")
             return existing
-        
-        # Append new data
+
         combined = pd.concat([existing, latest], ignore_index=True)
         combined = combined.sort_values('Date').reset_index(drop=True)
         
