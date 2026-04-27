@@ -61,6 +61,9 @@ jobs:
           echo "tickers=$TICKERS" >> "$GITHUB_OUTPUT"
 
       - name: Refetch historical data and regenerate charts
+        env:
+          TIINGO_API_TOKEN: ${{ secrets.TIINGO_API_TOKEN }}
+          ALPHA_VANTAGE_API_KEY: ${{ secrets.ALPHA_VANTAGE_API_KEY }}
         run: python main.py initial --force -s ${{ steps.list.outputs.tickers }}
 
       - name: Commit refreshed data and charts

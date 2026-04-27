@@ -40,6 +40,8 @@ jobs:
         id: add
         env:
           RAW_TICKERS: ${{ github.event.inputs.tickers }}
+          TIINGO_API_TOKEN: ${{ secrets.TIINGO_API_TOKEN }}
+          ALPHA_VANTAGE_API_KEY: ${{ secrets.ALPHA_VANTAGE_API_KEY }}
         run: |
           set -euo pipefail
           # Sanitize: uppercase, only A-Z/0-9/.-, dedupe, drop empties
