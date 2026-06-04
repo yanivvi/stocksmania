@@ -1328,3 +1328,10 @@
 {"ts": "2026-06-04T08:19:09Z", "symbol": "FLY", "provider": "Tiingo", "ok": true, "ms": 102}
 {"ts": "2026-06-04T08:19:09Z", "symbol": "F", "provider": "Tiingo", "ok": true, "ms": 118}
 {"ts": "2026-06-04T08:19:09Z", "symbol": "GM", "provider": "Tiingo", "ok": true, "ms": 96}
+{"ts": "2026-06-04T08:43:49Z", "symbol": "ARM", "provider": "Tiingo", "ok": true, "ms": 272}
+{"ts": "2026-06-04T08:43:51Z", "symbol": "DDOG", "provider": "Tiingo", "ok": true, "ms": 275}
+{"ts": "2026-06-04T08:43:52Z", "symbol": "ESLT", "provider": "Tiingo", "ok": true, "ms": 294}
+{"ts": "2026-06-04T08:43:52Z", "symbol": "NVTS", "provider": "Tiingo", "ok": true, "ms": 292}
+{"ts": "2026-06-04T08:43:53Z", "symbol": "OKTA", "provider": "Tiingo", "ok": true, "ms": 271}
+{"ts": "2026-06-04T08:43:53Z", "symbol": "PLD", "provider": "Tiingo", "ok": true, "ms": 297}
+{"ts": "2026-06-04T08:43:54Z", "symbol": "WELL", "provider": "Tiingo", "ok": true, "ms": 270}
