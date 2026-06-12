@@ -17,10 +17,16 @@ from pathlib import Path
 
 import pandas as pd
 
-ROLLING_WINDOW = 150
-BUY_ZONE_MIN, BUY_ZONE_MAX = 0, 15
-SELL_BELOW = -10
-OVERBOUGHT = 40
+from config import (
+    BUY_ZONE_MAX,
+    BUY_ZONE_MIN,
+    FRESH_OK_DAYS,
+    FRESH_WARN_DAYS,
+    OVERBOUGHT,
+    ROLLING_WINDOW,
+    SELL_BELOW,
+)
+from types_ import SignalCls, SignalLabel, StockMetrics, TickerRow
 
 REPO_URL = "https://github.com/yanivvi/stocksmania"
 DAILY_WF_URL = f"{REPO_URL}/actions/workflows/daily_update.yml"
@@ -133,6 +139,34 @@ h1 { margin: 0 0 4px; font-size: 28px; }
 .val { color: var(--text); font-weight: 600; }
 .val.up { color: var(--green); } .val.down { color: var(--red); }
 .warn-msg { color: var(--red); padding: 8px 0; }
+.spark { display: block; width: 100%; height: 40px; margin: 4px 0 8px; }
+.spark.spark-up { color: var(--green); }
+.spark.spark-down { color: var(--red); }
+
+/* Table view */
+.view-toggle { display: inline-flex; gap: 4px; background: var(--surface);
+  border: 1px solid var(--border); border-radius: 6px; padding: 2px;
+  margin-left: auto; }
+.view-toggle button { background: transparent; color: var(--muted); border: 0;
+  padding: 6px 12px; border-radius: 4px; font-size: 12px; cursor: pointer; }
+.view-toggle button.active { background: var(--surface-2); color: var(--text); }
+.tbl-wrap { background: var(--surface); border: 1px solid var(--border);
+  border-radius: 10px; overflow: auto; }
+.tbl-wrap.hidden { display: none; }
+.grid-cards.hidden { display: none; }
+table.statuses { width: 100%; border-collapse: collapse; font-size: 13px;
+  min-width: 700px; }
+table.statuses thead th { position: sticky; top: 0; background: var(--surface);
+  text-align: left; padding: 10px; border-bottom: 1px solid var(--border);
+  font-weight: 600; color: var(--muted); cursor: pointer; user-select: none;
+  white-space: nowrap; }
+table.statuses thead th .arrow { color: var(--link); margin-left: 4px; }
+table.statuses tbody td { padding: 8px 10px; border-bottom: 1px solid var(--border); }
+table.statuses tbody tr:hover { background: var(--surface-2); }
+table.statuses tbody tr.hidden { display: none; }
+table.statuses td.num { text-align: right; font-variant-numeric: tabular-nums; }
+table.statuses td a { color: var(--link); text-decoration: none; font-weight: 600; }
+table.statuses td .signal { display: inline-block; }
 .links { margin-top: 8px; font-size: 12px; }
 .links a { color: var(--link); text-decoration: none; }
 .muted { color: var(--muted); }
@@ -148,7 +182,7 @@ def read_tickers() -> list[str]:
     ]
 
 
-def load_metrics(symbol: str) -> dict | None:
+def load_metrics(symbol: str) -> StockMetrics | None:
     csv = DATA / f"{symbol}_prices.csv"
     if not csv.exists():
         return None
@@ -171,7 +205,39 @@ def load_metrics(symbol: str) -> dict | None:
     }
 
 
-def signal(vs_ma: float | None) -> tuple[str, str]:
+def sparkline_svg(symbol: str, *, width: int = 180, height: int = 40, points: int = 60) -> str:
+    """Render an inline SVG sparkline of the last `points` closes.
+
+    Returns empty string if data isn't available. Color is green if last >= first,
+    red otherwise. Uses currentColor so it inherits theme."""
+    csv = DATA / f"{symbol}_prices.csv"
+    if not csv.exists():
+        return ""
+    try:
+        df = pd.read_csv(csv, usecols=["Close"])
+    except Exception:
+        return ""
+    closes = df["Close"].dropna().tail(points).tolist()
+    if len(closes) < 2:
+        return ""
+    lo, hi = min(closes), max(closes)
+    span = (hi - lo) or 1.0
+    n = len(closes)
+    pts = " ".join(
+        f"{i * width / (n - 1):.1f},{height - (c - lo) / span * (height - 2) - 1:.1f}"
+        for i, c in enumerate(closes)
+    )
+    color_cls = "spark-up" if closes[-1] >= closes[0] else "spark-down"
+    return (
+        f'<svg class="spark {color_cls}" viewBox="0 0 {width} {height}" '
+        f'preserveAspectRatio="none" aria-label="{symbol} sparkline">'
+        f'<polyline fill="none" stroke="currentColor" stroke-width="1.5" '
+        f'stroke-linejoin="round" stroke-linecap="round" points="{pts}" />'
+        f'</svg>'
+    )
+
+
+def signal(vs_ma: float | None) -> tuple[SignalLabel, SignalCls]:
     if vs_ma is None:
         return ("HOLD", "no-ma")
     if vs_ma >= OVERBOUGHT or vs_ma <= SELL_BELOW:
@@ -185,15 +251,15 @@ def freshness(latest: date | None, today: date) -> tuple[str, str]:
     if latest is None:
         return ("missing", "no data")
     age = (today - latest).days
-    if age <= 5:
+    if age <= FRESH_OK_DAYS:
         return ("ok", f"{age}d old")
-    if age <= 14:
+    if age <= FRESH_WARN_DAYS:
         return ("warn", f"{age}d old")
     return ("stale", f"{age}d old")
 
 
-def render_detail_page(symbol: str, df: pd.DataFrame | None, m: dict | None,
-                        sig: str, sig_cls: str) -> str:
+def render_detail_page(symbol: str, df: pd.DataFrame | None, m: StockMetrics | None,
+                        sig: SignalLabel, sig_cls: SignalCls) -> str:
     """A per-ticker page at site/t/<SYMBOL>.html."""
     title = f"{symbol} – StocksMania"
     if df is None or m is None:
@@ -320,10 +386,12 @@ def card_html(r: dict) -> str:
           </div>
         """
         chart_path = CHARTS / f"{sym}.png"
-        chart = (
+        spark = sparkline_svg(sym)
+        chart_img = (
             f'<img loading="lazy" src="charts/{sym}.png" alt="{sym} chart">'
             if chart_path.exists() else ""
         )
+        chart = spark + chart_img
     return f"""
       <article class="card {sig_cls}" data-symbol="{sym}" data-status="{sig}" id="{sym}">
         <header>
@@ -334,6 +402,42 @@ def card_html(r: dict) -> str:
         {chart}
         {body}
       </article>"""
+
+
+def table_row(r: dict) -> str:
+    sym = r["sym"]
+    m = r["m"]
+    sig, sig_cls = r["sig"], r["sig_cls"]
+    fresh_cls, fresh_lbl = r["fresh"]
+    if m is None:
+        return (
+            f'<tr data-symbol="{sym}" data-status="{sig}" '
+            f'data-price="" data-change="" data-vsma="" data-age="">'
+            f'<td><a href="t/{sym}.html">{sym}</a></td>'
+            f'<td><span class="signal {sig_cls}">{sig}</span></td>'
+            f'<td colspan="5" class="muted">no data</td>'
+            f'<td><span class="fresh {fresh_cls}">{fresh_lbl}</span></td>'
+            f'</tr>'
+        )
+    vs_ma = m["vs_ma"]
+    vs_ma_str = f"{vs_ma:+.1f}%" if vs_ma is not None else "—"
+    chg = m["daily_change"]
+    chg_cls = "up" if chg >= 0 else "down"
+    age = (date.today() - m["latest_date"]).days
+    return (
+        f'<tr data-symbol="{sym}" data-status="{sig}" '
+        f'data-price="{m["price"]}" data-change="{chg}" '
+        f'data-vsma="{vs_ma if vs_ma is not None else ""}" data-age="{age}">'
+        f'<td><a href="t/{sym}.html">{sym}</a></td>'
+        f'<td><span class="signal {sig_cls}">{sig}</span></td>'
+        f'<td class="num">${m["price"]:.2f}</td>'
+        f'<td class="num val {chg_cls}">{chg:+.2f}%</td>'
+        f'<td class="num">{vs_ma_str}</td>'
+        f'<td>{sparkline_svg(sym, width=120, height=28, points=60)}</td>'
+        f'<td class="num muted">{m["latest_date"]}</td>'
+        f'<td><span class="fresh {fresh_cls}">{fresh_lbl}</span></td>'
+        f'</tr>'
+    )
 
 
 def mini_row(r: dict) -> str:
@@ -354,7 +458,7 @@ def mini_row(r: dict) -> str:
     )
 
 
-def render(rows: list[dict], today: date) -> str:
+def render(rows: list[TickerRow], today: date) -> str:
     total = len(rows)
     ghosts = sum(1 for r in rows if r["m"] is None)
     stale = sum(1 for r in rows if r["m"] and (today - r["m"]["latest_date"]).days > 5)
@@ -367,6 +471,7 @@ def render(rows: list[dict], today: date) -> str:
     bot3 = sorted(with_ma, key=lambda r: r["m"]["vs_ma"])[:3]
 
     cards_html = "\n".join(card_html(r) for r in rows)
+    rows_tbl = "\n".join(table_row(r) for r in rows)
     top_html = "".join(mini_row(r) for r in top3) or '<span class="muted">—</span>'
     bot_html = "".join(mini_row(r) for r in bot3) or '<span class="muted">—</span>'
 
@@ -403,6 +508,9 @@ def render(rows: list[dict], today: date) -> str:
     <a class="btn secondary" href="{BACKFILL_WF_URL}" target="_blank" rel="noopener" title="Refetch full history (overwrites CSVs). Use 'all' or specific tickers.">
       🩹 Backfill
     </a>
+    <a class="btn secondary" href="what-if.html" title="Backtest: $1k/mo into top BUY picks">
+      🔮 What if
+    </a>
   </div>
 
   <div class="summary">
@@ -435,11 +543,33 @@ def render(rows: list[dict], today: date) -> str:
     </label>
     <button class="btn secondary" id="f-clear" type="button">Clear filters</button>
     <span id="count"></span>
+    <div class="view-toggle" role="tablist" aria-label="View">
+      <button id="view-cards" class="active" type="button">Cards</button>
+      <button id="view-table" type="button">Table</button>
+    </div>
   </div>
 
   <section class="grid-cards" id="cards">
     {cards_html}
   </section>
+
+  <div class="tbl-wrap hidden" id="table-wrap">
+    <table class="statuses" id="status-table">
+      <thead>
+        <tr>
+          <th data-sort="symbol">Ticker<span class="arrow"></span></th>
+          <th data-sort="status">Status<span class="arrow"></span></th>
+          <th data-sort="price" class="num">Price<span class="arrow"></span></th>
+          <th data-sort="change" class="num">Today<span class="arrow"></span></th>
+          <th data-sort="vsma" class="num">vs MA<span class="arrow"></span></th>
+          <th>60d</th>
+          <th data-sort="age" class="num">Last<span class="arrow"></span></th>
+          <th>Freshness</th>
+        </tr>
+      </thead>
+      <tbody>{rows_tbl}</tbody>
+    </table>
+  </div>
 
   <footer>
     StocksMania · <a href="{REPO_URL}" style="color:#58a6ff">source</a>
@@ -466,14 +596,48 @@ def render(rows: list[dict], today: date) -> str:
       const statusSel = document.getElementById('f-status');
       const clearBtn  = document.getElementById('f-clear');
       const countEl   = document.getElementById('count');
+      const cardsWrap = document.getElementById('cards');
+      const tableWrap = document.getElementById('table-wrap');
+      const viewCardsBtn = document.getElementById('view-cards');
+      const viewTableBtn = document.getElementById('view-table');
       const cards     = Array.from(document.querySelectorAll('#cards .card'));
+      const tbody     = document.querySelector('#status-table tbody');
+      const trs       = Array.from(tbody.querySelectorAll('tr'));
+      const ths       = document.querySelectorAll('#status-table thead th[data-sort]');
 
       function selected(sel) {{
         return Array.from(sel.selectedOptions).map(o => o.value);
       }}
-      function apply() {{
-        const ts = selected(tickerSel);
-        const ss = selected(statusSel);
+      function setMulti(sel, vals) {{
+        for (const o of sel.options) o.selected = vals.includes(o.value);
+      }}
+
+      // ---- URL state ---------------------------------------------------
+      function readState() {{
+        const p = new URLSearchParams(location.search);
+        return {{
+          tickers: (p.get('tickers') || '').split(',').filter(Boolean),
+          statuses: (p.get('statuses') || '').split(',').filter(Boolean),
+          view: p.get('view') === 'table' ? 'table' : 'cards',
+          sort: p.get('sort') || '',
+          dir: p.get('dir') === 'desc' ? 'desc' : 'asc',
+        }};
+      }}
+      function writeState(s) {{
+        const p = new URLSearchParams();
+        if (s.tickers.length) p.set('tickers', s.tickers.join(','));
+        if (s.statuses.length) p.set('statuses', s.statuses.join(','));
+        if (s.view === 'table') p.set('view', 'table');
+        if (s.sort) {{ p.set('sort', s.sort); p.set('dir', s.dir); }}
+        const qs = p.toString();
+        history.replaceState(null, '', qs ? '?' + qs : location.pathname);
+      }}
+
+      let state = readState();
+
+      function applyFilter() {{
+        const ts = state.tickers;
+        const ss = state.statuses;
         let visible = 0;
         for (const c of cards) {{
           const ok = (ts.length === 0 || ts.includes(c.dataset.symbol)) &&
@@ -481,16 +645,82 @@ def render(rows: list[dict], today: date) -> str:
           c.classList.toggle('hidden', !ok);
           if (ok) visible++;
         }}
+        for (const tr of trs) {{
+          const ok = (ts.length === 0 || ts.includes(tr.dataset.symbol)) &&
+                     (ss.length === 0 || ss.includes(tr.dataset.status));
+          tr.classList.toggle('hidden', !ok);
+        }}
         countEl.textContent = `Showing ${{visible}} of ${{cards.length}}`;
       }}
-      tickerSel.addEventListener('change', apply);
-      statusSel.addEventListener('change', apply);
+
+      function applyView() {{
+        const isTable = state.view === 'table';
+        cardsWrap.classList.toggle('hidden', isTable);
+        tableWrap.classList.toggle('hidden', !isTable);
+        viewCardsBtn.classList.toggle('active', !isTable);
+        viewTableBtn.classList.toggle('active', isTable);
+      }}
+
+      // ---- Sorting -----------------------------------------------------
+      const STATUS_ORDER = {{ 'BUY': 0, 'SELL': 1, 'HOLD': 2, 'NO DATA': 3 }};
+      function sortKey(tr, key) {{
+        if (key === 'symbol') return tr.dataset.symbol;
+        if (key === 'status') return STATUS_ORDER[tr.dataset.status] ?? 9;
+        const v = parseFloat(tr.dataset[key]);
+        return isNaN(v) ? Infinity : v;
+      }}
+      function applySort() {{
+        ths.forEach(th => {{
+          const a = th.querySelector('.arrow');
+          a.textContent = (th.dataset.sort === state.sort)
+            ? (state.dir === 'asc' ? '▲' : '▼') : '';
+        }});
+        if (!state.sort) return;
+        const sorted = trs.slice().sort((a, b) => {{
+          const ka = sortKey(a, state.sort), kb = sortKey(b, state.sort);
+          if (ka < kb) return state.dir === 'asc' ? -1 : 1;
+          if (ka > kb) return state.dir === 'asc' ? 1 : -1;
+          return 0;
+        }});
+        for (const tr of sorted) tbody.appendChild(tr);
+      }}
+
+      // ---- Wire events -------------------------------------------------
+      function onFilterChange() {{
+        state.tickers = selected(tickerSel);
+        state.statuses = selected(statusSel);
+        writeState(state);
+        applyFilter();
+      }}
+      tickerSel.addEventListener('change', onFilterChange);
+      statusSel.addEventListener('change', onFilterChange);
       clearBtn.addEventListener('click', () => {{
-        for (const o of tickerSel.options) o.selected = false;
-        for (const o of statusSel.options) o.selected = false;
-        apply();
+        state.tickers = []; state.statuses = [];
+        setMulti(tickerSel, []); setMulti(statusSel, []);
+        writeState(state); applyFilter();
       }});
-      apply();
+      viewCardsBtn.addEventListener('click', () => {{
+        state.view = 'cards'; writeState(state); applyView();
+      }});
+      viewTableBtn.addEventListener('click', () => {{
+        state.view = 'table'; writeState(state); applyView();
+      }});
+      ths.forEach(th => th.addEventListener('click', () => {{
+        const key = th.dataset.sort;
+        if (state.sort === key) {{
+          state.dir = state.dir === 'asc' ? 'desc' : 'asc';
+        }} else {{
+          state.sort = key; state.dir = 'asc';
+        }}
+        writeState(state); applySort();
+      }}));
+
+      // ---- Initial render from URL ------------------------------------
+      setMulti(tickerSel, state.tickers);
+      setMulti(statusSel, state.statuses);
+      applyView();
+      applyFilter();
+      applySort();
     }})();
   </script>
 </body>
@@ -546,7 +776,12 @@ def main() -> None:
     rows.sort(key=lambda r: (order.get(r["sig"], 9), r["sym"]))
 
     (SITE / "index.html").write_text(render(rows, today))
-    print(f"✅ Wrote {SITE / 'index.html'} + {len(rows)} detail pages")
+
+    from what_if import build_whatif_page
+
+    build_whatif_page(SITE / "what-if.html")
+
+    print(f"✅ Wrote {SITE / 'index.html'} + {len(rows)} detail pages + what-if.html")
 
 
 if __name__ == "__main__":

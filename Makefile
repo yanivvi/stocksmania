@@ -1,4 +1,4 @@
-.PHONY: help install test lint fix daily site backfill validate clean
+.PHONY: help install test lint fix daily site whatif backfill validate clean
 
 PY ?= python
 
@@ -10,6 +10,7 @@ help:
 	@echo "  fix       - run ruff check --fix"
 	@echo "  daily     - run daily update locally for tickers in stocks.txt"
 	@echo "  site      - build the static site under ./site"
+	@echo "  whatif    - run MA strategy backtest / write site/what-if.html"
 	@echo "  validate  - run the data-quality validator (exit non-zero on issues)"
 	@echo "  backfill  - re-fetch full history (TICKERS=NVDA,AAPL or 'all')"
 	@echo "  clean     - remove generated artifacts"
@@ -34,6 +35,9 @@ daily:
 
 site:
 	$(PY) build_site.py
+
+whatif:
+	$(PY) what_if.py --site
 
 validate:
 	$(PY) validate_data.py
