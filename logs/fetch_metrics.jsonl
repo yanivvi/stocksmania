@@ -8103,3 +8103,81 @@
 {"ts": "2026-10-21T09:07:00Z", "symbol": "TXN", "provider": "Stooq", "ok": false, "ms": 383}
 {"ts": "2026-10-21T09:07:02Z", "symbol": "TXN", "provider": "Stooq", "ok": false, "ms": 632}
 {"ts": "2026-10-21T09:07:02Z", "symbol": "TXN", "provider": "Yahoo Finance", "ok": true, "ms": 301}
+{"ts": "2026-10-22T09:08:39Z", "symbol": "NVDA", "provider": "Tiingo", "ok": true, "ms": 178}
+{"ts": "2026-10-22T09:08:39Z", "symbol": "AMD", "provider": "Tiingo", "ok": true, "ms": 144}
+{"ts": "2026-10-22T09:08:39Z", "symbol": "INTC", "provider": "Tiingo", "ok": true, "ms": 176}
+{"ts": "2026-10-22T09:08:40Z", "symbol": "AAPL", "provider": "Tiingo", "ok": true, "ms": 142}
+{"ts": "2026-10-22T09:08:40Z", "symbol": "MSFT", "provider": "Tiingo", "ok": true, "ms": 121}
+{"ts": "2026-10-22T09:08:41Z", "symbol": "GOOGL", "provider": "Tiingo", "ok": true, "ms": 110}
+{"ts": "2026-10-22T09:08:41Z", "symbol": "AMZN", "provider": "Tiingo", "ok": true, "ms": 125}
+{"ts": "2026-10-22T09:08:41Z", "symbol": "META", "provider": "Tiingo", "ok": true, "ms": 133}
+{"ts": "2026-10-22T09:08:42Z", "symbol": "TSLA", "provider": "Tiingo", "ok": true, "ms": 126}
+{"ts": "2026-10-22T09:08:42Z", "symbol": "JPM", "provider": "Tiingo", "ok": true, "ms": 108}
+{"ts": "2026-10-22T09:08:43Z", "symbol": "V", "provider": "Tiingo", "ok": true, "ms": 120}
+{"ts": "2026-10-22T09:08:43Z", "symbol": "COIN", "provider": "Tiingo", "ok": true, "ms": 130}
+{"ts": "2026-10-22T09:08:43Z", "symbol": "KO", "provider": "Tiingo", "ok": true, "ms": 156}
+{"ts": "2026-10-22T09:08:44Z", "symbol": "COST", "provider": "Tiingo", "ok": true, "ms": 164}
+{"ts": "2026-10-22T09:08:44Z", "symbol": "NFLX", "provider": "Tiingo", "ok": true, "ms": 125}
+{"ts": "2026-10-22T09:08:45Z", "symbol": "SPOT", "provider": "Tiingo", "ok": true, "ms": 115}
+{"ts": "2026-10-22T09:08:45Z", "symbol": "BA", "provider": "Tiingo", "ok": true, "ms": 137}
+{"ts": "2026-10-22T09:08:45Z", "symbol": "LLY", "provider": "Tiingo", "ok": true, "ms": 111}
+{"ts": "2026-10-22T09:08:46Z", "symbol": "NVO", "provider": "Tiingo", "ok": true, "ms": 129}
+{"ts": "2026-10-22T09:08:46Z", "symbol": "PLTR", "provider": "Tiingo", "ok": true, "ms": 131}
+{"ts": "2026-10-22T09:08:47Z", "symbol": "CRM", "provider": "Tiingo", "ok": true, "ms": 143}
+{"ts": "2026-10-22T09:08:47Z", "symbol": "CRWD", "provider": "Tiingo", "ok": true, "ms": 108}
+{"ts": "2026-10-22T09:08:47Z", "symbol": "PANW", "provider": "Tiingo", "ok": true, "ms": 123}
+{"ts": "2026-10-22T09:08:48Z", "symbol": "MARA", "provider": "Tiingo", "ok": true, "ms": 106}
+{"ts": "2026-10-22T09:08:48Z", "symbol": "TKO", "provider": "Tiingo", "ok": true, "ms": 122}
+{"ts": "2026-10-22T09:08:49Z", "symbol": "LMT", "provider": "Tiingo", "ok": true, "ms": 134}
+{"ts": "2026-10-22T09:08:49Z", "symbol": "RTX", "provider": "Tiingo", "ok": true, "ms": 108}
+{"ts": "2026-10-22T09:08:49Z", "symbol": "KTOS", "provider": "Tiingo", "ok": true, "ms": 117}
+{"ts": "2026-10-22T09:08:50Z", "symbol": "NOC", "provider": "Tiingo", "ok": true, "ms": 106}
+{"ts": "2026-10-22T09:08:50Z", "symbol": "GD", "provider": "Tiingo", "ok": true, "ms": 130}
+{"ts": "2026-10-22T09:08:51Z", "symbol": "AVGO", "provider": "Tiingo", "ok": true, "ms": 105}
+{"ts": "2026-10-22T09:08:51Z", "symbol": "ORCL", "provider": "Tiingo", "ok": true, "ms": 132}
+{"ts": "2026-10-22T09:08:51Z", "symbol": "NOW", "provider": "Tiingo", "ok": true, "ms": 107}
+{"ts": "2026-10-22T09:08:52Z", "symbol": "ANET", "provider": "Tiingo", "ok": true, "ms": 124}
+{"ts": "2026-10-22T09:08:52Z", "symbol": "WDC", "provider": "Tiingo", "ok": true, "ms": 140}
+{"ts": "2026-10-22T09:08:53Z", "symbol": "FLY", "provider": "Tiingo", "ok": true, "ms": 125}
+{"ts": "2026-10-22T09:08:53Z", "symbol": "F", "provider": "Tiingo", "ok": true, "ms": 134}
+{"ts": "2026-10-22T09:08:53Z", "symbol": "GM", "provider": "Tiingo", "ok": true, "ms": 126}
+{"ts": "2026-10-22T09:08:54Z", "symbol": "ARM", "provider": "Tiingo", "ok": true, "ms": 114}
+{"ts": "2026-10-22T09:08:54Z", "symbol": "DDOG", "provider": "Tiingo", "ok": true, "ms": 124}
+{"ts": "2026-10-22T09:08:55Z", "symbol": "ESLT", "provider": "Tiingo", "ok": true, "ms": 124}
+{"ts": "2026-10-22T09:08:55Z", "symbol": "NVTS", "provider": "Tiingo", "ok": true, "ms": 113}
+{"ts": "2026-10-22T09:08:55Z", "symbol": "OKTA", "provider": "Tiingo", "ok": true, "ms": 122}
+{"ts": "2026-10-22T09:08:56Z", "symbol": "PLD", "provider": "Tiingo", "ok": true, "ms": 118}
+{"ts": "2026-10-22T09:08:56Z", "symbol": "WELL", "provider": "Tiingo", "ok": true, "ms": 105}
+{"ts": "2026-10-22T09:08:57Z", "symbol": "SPCX", "provider": "Tiingo", "ok": true, "ms": 100}
+{"ts": "2026-10-22T09:08:57Z", "symbol": "IREN", "provider": "Tiingo", "ok": true, "ms": 122}
+{"ts": "2026-10-22T09:08:57Z", "symbol": "MU", "provider": "Tiingo", "ok": true, "ms": 131}
+{"ts": "2026-10-22T09:08:58Z", "symbol": "SNDK", "provider": "Tiingo", "ok": true, "ms": 114}
+{"ts": "2026-10-22T09:08:58Z", "symbol": "VRT", "provider": "Tiingo", "ok": true, "ms": 135}
+{"ts": "2026-10-22T09:08:59Z", "symbol": "SMCI", "provider": "Tiingo", "ok": false, "ms": 90}
+{"ts": "2026-10-22T09:08:59Z", "symbol": "SMCI", "provider": "Stooq", "ok": false, "ms": 545}
+{"ts": "2026-10-22T09:09:01Z", "symbol": "SMCI", "provider": "Stooq", "ok": false, "ms": 490}
+{"ts": "2026-10-22T09:09:02Z", "symbol": "SMCI", "provider": "Yahoo Finance", "ok": true, "ms": 645}
+{"ts": "2026-10-22T09:09:02Z", "symbol": "ALAB", "provider": "Tiingo", "ok": false, "ms": 85}
+{"ts": "2026-10-22T09:09:02Z", "symbol": "ALAB", "provider": "Stooq", "ok": false, "ms": 507}
+{"ts": "2026-10-22T09:09:04Z", "symbol": "ALAB", "provider": "Stooq", "ok": false, "ms": 351}
+{"ts": "2026-10-22T09:09:04Z", "symbol": "ALAB", "provider": "Yahoo Finance", "ok": true, "ms": 137}
+{"ts": "2026-10-22T09:09:04Z", "symbol": "CRDO", "provider": "Tiingo", "ok": false, "ms": 86}
+{"ts": "2026-10-22T09:09:05Z", "symbol": "CRDO", "provider": "Stooq", "ok": false, "ms": 550}
+{"ts": "2026-10-22T09:09:07Z", "symbol": "CRDO", "provider": "Stooq", "ok": false, "ms": 525}
+{"ts": "2026-10-22T09:09:07Z", "symbol": "CRDO", "provider": "Yahoo Finance", "ok": true, "ms": 120}
+{"ts": "2026-10-22T09:09:07Z", "symbol": "MRVL", "provider": "Tiingo", "ok": false, "ms": 85}
+{"ts": "2026-10-22T09:09:08Z", "symbol": "MRVL", "provider": "Stooq", "ok": false, "ms": 481}
+{"ts": "2026-10-22T09:09:09Z", "symbol": "MRVL", "provider": "Stooq", "ok": false, "ms": 360}
+{"ts": "2026-10-22T09:09:10Z", "symbol": "MRVL", "provider": "Yahoo Finance", "ok": true, "ms": 139}
+{"ts": "2026-10-22T09:09:10Z", "symbol": "ON", "provider": "Tiingo", "ok": false, "ms": 89}
+{"ts": "2026-10-22T09:09:11Z", "symbol": "ON", "provider": "Stooq", "ok": false, "ms": 367}
+{"ts": "2026-10-22T09:09:12Z", "symbol": "ON", "provider": "Stooq", "ok": false, "ms": 354}
+{"ts": "2026-10-22T09:09:12Z", "symbol": "ON", "provider": "Yahoo Finance", "ok": true, "ms": 125}
+{"ts": "2026-10-22T09:09:12Z", "symbol": "TSM", "provider": "Tiingo", "ok": false, "ms": 86}
+{"ts": "2026-10-22T09:09:13Z", "symbol": "TSM", "provider": "Stooq", "ok": false, "ms": 359}
+{"ts": "2026-10-22T09:09:14Z", "symbol": "TSM", "provider": "Stooq", "ok": false, "ms": 374}
+{"ts": "2026-10-22T09:09:15Z", "symbol": "TSM", "provider": "Yahoo Finance", "ok": true, "ms": 145}
+{"ts": "2026-10-22T09:09:15Z", "symbol": "TXN", "provider": "Tiingo", "ok": false, "ms": 91}
+{"ts": "2026-10-22T09:09:16Z", "symbol": "TXN", "provider": "Stooq", "ok": false, "ms": 361}
+{"ts": "2026-10-22T09:09:17Z", "symbol": "TXN", "provider": "Stooq", "ok": false, "ms": 545}
+{"ts": "2026-10-22T09:09:17Z", "symbol": "TXN", "provider": "Yahoo Finance", "ok": true, "ms": 175}
