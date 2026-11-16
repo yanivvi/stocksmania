@@ -9840,3 +9840,5 @@
 {"ts": "2026-11-16T12:26:03Z", "symbol": "WIX", "provider": "Stooq", "ok": false, "ms": 627}
 {"ts": "2026-11-16T12:26:05Z", "symbol": "WIX", "provider": "Stooq", "ok": false, "ms": 473}
 {"ts": "2026-11-16T12:26:05Z", "symbol": "WIX", "provider": "Yahoo Finance", "ok": true, "ms": 96}
+{"ts": "2026-11-16T17:00:54Z", "symbol": "NVDA", "provider": "Tiingo", "ok": true, "ms": 297}
+{"ts": "2026-11-16T17:00:56Z", "symbol": "TTWO", "provider": "Tiingo", "ok": true, "ms": 230}
