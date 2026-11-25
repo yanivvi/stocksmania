@@ -10776,3 +10776,7 @@
 {"ts": "2026-11-25T18:15:17Z", "symbol": "DASH", "provider": "Stooq", "ok": false, "ms": 480}
 {"ts": "2026-11-25T18:15:18Z", "symbol": "DASH", "provider": "Stooq", "ok": false, "ms": 469}
 {"ts": "2026-11-25T18:15:19Z", "symbol": "DASH", "provider": "Yahoo Finance", "ok": true, "ms": 269}
+{"ts": "2026-11-25T18:17:42Z", "symbol": "DASH", "provider": "Tiingo", "ok": false, "ms": 126}
+{"ts": "2026-11-25T18:17:43Z", "symbol": "DASH", "provider": "Stooq", "ok": false, "ms": 528}
+{"ts": "2026-11-25T18:17:45Z", "symbol": "DASH", "provider": "Stooq", "ok": false, "ms": 543}
+{"ts": "2026-11-25T18:17:46Z", "symbol": "DASH", "provider": "Yahoo Finance", "ok": true, "ms": 1100}
